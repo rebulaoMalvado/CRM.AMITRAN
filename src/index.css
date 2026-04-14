@@ -1,0 +1,190 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap');
+
+@layer base {
+  :root {
+    --background: 220 16% 96%;
+    --foreground: 224 28% 12%;
+
+    --card: 0 0% 100%;
+    --card-foreground: 224 28% 12%;
+
+    --popover: 0 0% 100%;
+    --popover-foreground: 224 28% 12%;
+
+    --primary: 245 58% 51%;
+    --primary-foreground: 0 0% 100%;
+
+    --secondary: 220 14% 92%;
+    --secondary-foreground: 224 28% 12%;
+
+    --muted: 220 14% 95%;
+    --muted-foreground: 220 9% 46%;
+
+    --accent: 245 58% 96%;
+    --accent-foreground: 245 58% 51%;
+
+    --destructive: 0 72% 51%;
+    --destructive-foreground: 0 0% 100%;
+
+    --border: 220 13% 90%;
+    --input: 220 13% 90%;
+    --ring: 245 58% 51%;
+
+    --radius: 0.75rem;
+
+    --stage-lead: 220 70% 55%;
+    --stage-qualification: 35 92% 50%;
+    --stage-quote: 190 72% 45%;
+    --stage-negotiation: 280 60% 55%;
+    --stage-closed: 145 63% 42%;
+    --stage-lost: 0 72% 51%;
+
+    --success: 145 63% 42%;
+    --success-foreground: 0 0% 100%;
+    --warning: 35 92% 50%;
+    --warning-foreground: 0 0% 100%;
+    --info: 210 100% 52%;
+    --info-foreground: 0 0% 100%;
+
+    --sidebar-background: 0 0% 98%;
+    --sidebar-foreground: 240 5.3% 26.1%;
+    --sidebar-primary: 240 5.9% 10%;
+    --sidebar-primary-foreground: 0 0% 98%;
+    --sidebar-accent: 240 4.8% 95.9%;
+    --sidebar-accent-foreground: 240 5.9% 10%;
+    --sidebar-border: 220 13% 91%;
+    --sidebar-ring: 217.2 91.2% 59.8%;
+  }
+
+  .dark {
+    --background: 228 18% 8%;
+    --foreground: 210 20% 95%;
+
+    --card: 228 18% 11%;
+    --card-foreground: 210 20% 95%;
+
+    --popover: 228 18% 11%;
+    --popover-foreground: 210 20% 95%;
+
+    --primary: 245 58% 61%;
+    --primary-foreground: 0 0% 100%;
+
+    --secondary: 228 14% 16%;
+    --secondary-foreground: 210 20% 95%;
+
+    --muted: 228 14% 16%;
+    --muted-foreground: 220 9% 55%;
+
+    --accent: 245 30% 18%;
+    --accent-foreground: 245 58% 75%;
+
+    --destructive: 0 62% 40%;
+    --destructive-foreground: 0 0% 100%;
+
+    --border: 228 14% 18%;
+    --input: 228 14% 18%;
+    --ring: 245 58% 61%;
+
+    --sidebar-background: 228 18% 10%;
+    --sidebar-foreground: 210 20% 85%;
+    --sidebar-primary: 245 58% 61%;
+    --sidebar-primary-foreground: 0 0% 100%;
+    --sidebar-accent: 228 14% 16%;
+    --sidebar-accent-foreground: 210 20% 85%;
+    --sidebar-border: 228 14% 18%;
+    --sidebar-ring: 245 58% 61%;
+  }
+}
+
+@layer base {
+  * {
+    @apply border-border;
+  }
+
+  body {
+    @apply bg-background text-foreground font-sans antialiased;
+    font-family: 'Inter', system-ui, sans-serif;
+  }
+}
+
+@layer components {
+  .kpi-card {
+    @apply bg-card rounded-xl border border-border p-5 transition-all duration-200;
+  }
+
+  .kpi-card:hover {
+    @apply shadow-lg border-primary/20;
+    transform: translateY(-2px);
+  }
+
+  .stage-badge {
+    @apply inline-flex items-center gap-1.5 rounded-full px-2.5 py-0.5 text-xs font-medium;
+  }
+
+  .pipeline-column {
+    @apply flex flex-col rounded-xl bg-muted/50 border border-border/50 min-h-[400px];
+  }
+
+  .deal-card {
+    @apply bg-card rounded-lg border border-border p-4 cursor-grab transition-all duration-150;
+  }
+
+  .deal-card:hover {
+    @apply shadow-md border-primary/30;
+  }
+
+  .deal-card:active {
+    @apply cursor-grabbing shadow-lg;
+  }
+
+  .filter-bar {
+    @apply flex flex-wrap items-center gap-3 p-4 bg-card rounded-xl border border-border;
+  }
+
+  .chart-container {
+    @apply bg-card rounded-xl border border-border p-5;
+  }
+
+  .modal-overlay {
+    @apply fixed inset-0 bg-foreground/60 backdrop-blur-sm z-50 flex items-center justify-center p-4;
+  }
+
+  .modal-content {
+    @apply bg-card rounded-2xl border border-border shadow-2xl w-full max-w-lg max-h-[90vh] overflow-y-auto;
+  }
+
+  .stuck-indicator {
+    @apply absolute top-2 right-2 w-2 h-2 rounded-full bg-warning animate-pulse;
+  }
+
+  .hot-deal {
+    @apply border-l-4 border-l-warning;
+  }
+}
+
+@layer utilities {
+  .text-gradient {
+    @apply bg-clip-text text-transparent bg-gradient-to-r from-primary to-accent-foreground;
+  }
+
+  .scrollbar-thin {
+    scrollbar-width: thin;
+    scrollbar-color: hsl(var(--border)) transparent;
+  }
+
+  .scrollbar-thin::-webkit-scrollbar {
+    width: 4px;
+  }
+
+  .scrollbar-thin::-webkit-scrollbar-track {
+    background: transparent;
+  }
+
+  .scrollbar-thin::-webkit-scrollbar-thumb {
+    @apply bg-border rounded-full;
+  }
+}

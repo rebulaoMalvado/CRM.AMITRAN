@@ -1,0 +1,26 @@
+import { Deal } from '@/types/crm';
+
+const now = new Date();
+const daysAgo = (d: number) => new Date(now.getTime() - d * 86400000).toISOString();
+const futureDay = (d: number) => new Date(now.getTime() + d * 86400000).toISOString().split('T')[0];
+
+export const mockDeals: Deal[] = [
+  { id: '1', nome: 'Maria Silva', telefone: '(11) 99123-4567', origem: 'São Paulo, SP', destino: 'Campinas, SP', dataMudanca: futureDay(15), tipoServico: 'completo', valor: 4500, stage: 'lead_novo', parceiro: '', createdAt: daysAgo(0.5), updatedAt: daysAgo(0.5) },
+  { id: '2', nome: 'João Santos', telefone: '(21) 98765-4321', origem: 'Rio de Janeiro, RJ', destino: 'Niterói, RJ', dataMudanca: futureDay(10), tipoServico: 'economico', valor: 1800, stage: 'lead_novo', parceiro: '', createdAt: daysAgo(1), updatedAt: daysAgo(1) },
+  { id: '3', nome: 'Ana Oliveira', telefone: '(31) 97654-3210', origem: 'Belo Horizonte, MG', destino: 'Contagem, MG', dataMudanca: futureDay(20), tipoServico: 'completo', valor: 6200, stage: 'qualificacao', parceiro: '', createdAt: daysAgo(2), updatedAt: daysAgo(1) },
+  { id: '4', nome: 'Carlos Pereira', telefone: '(41) 96543-2109', origem: 'Curitiba, PR', destino: 'Florianópolis, SC', dataMudanca: futureDay(25), tipoServico: 'completo', valor: 8900, stage: 'qualificacao', parceiro: '', createdAt: daysAgo(3), updatedAt: daysAgo(2) },
+  { id: '5', nome: 'Fernanda Costa', telefone: '(51) 95432-1098', origem: 'Porto Alegre, RS', destino: 'Caxias do Sul, RS', dataMudanca: futureDay(8), tipoServico: 'economico', valor: 2200, stage: 'orcamento_enviado', parceiro: 'Mudanças Express', createdAt: daysAgo(5), updatedAt: daysAgo(3) },
+  { id: '6', nome: 'Roberto Lima', telefone: '(61) 94321-0987', origem: 'Brasília, DF', destino: 'Goiânia, GO', dataMudanca: futureDay(12), tipoServico: 'completo', valor: 7500, stage: 'orcamento_enviado', parceiro: 'TransBrasil', createdAt: daysAgo(4), updatedAt: daysAgo(2) },
+  { id: '7', nome: 'Patrícia Almeida', telefone: '(71) 93210-9876', origem: 'Salvador, BA', destino: 'Recife, PE', dataMudanca: futureDay(18), tipoServico: 'completo', valor: 12000, stage: 'negociacao', parceiro: 'Nordeste Mudanças', createdAt: daysAgo(7), updatedAt: daysAgo(1) },
+  { id: '8', nome: 'Lucas Rodrigues', telefone: '(11) 92109-8765', origem: 'São Paulo, SP', destino: 'Santos, SP', dataMudanca: futureDay(5), tipoServico: 'economico', valor: 1500, stage: 'negociacao', parceiro: 'Litoral Frete', createdAt: daysAgo(6), updatedAt: daysAgo(0.2) },
+  { id: '9', nome: 'Juliana Martins', telefone: '(85) 91098-7654', origem: 'Fortaleza, CE', destino: 'Teresina, PI', dataMudanca: futureDay(3), tipoServico: 'completo', valor: 9800, stage: 'fechado', parceiro: 'Norte Mudanças', createdAt: daysAgo(15), updatedAt: daysAgo(2) },
+  { id: '10', nome: 'Marcos Souza', telefone: '(19) 90987-6543', origem: 'Campinas, SP', destino: 'Ribeirão Preto, SP', dataMudanca: futureDay(1), tipoServico: 'completo', valor: 5500, stage: 'fechado', parceiro: 'SP Mudanças', createdAt: daysAgo(12), updatedAt: daysAgo(3) },
+  { id: '11', nome: 'Camila Ferreira', telefone: '(47) 99876-5432', origem: 'Joinville, SC', destino: 'Blumenau, SC', dataMudanca: futureDay(7), tipoServico: 'economico', valor: 1200, stage: 'fechado', parceiro: 'Sul Express', createdAt: daysAgo(10), updatedAt: daysAgo(5) },
+  { id: '12', nome: 'Ricardo Barbosa', telefone: '(27) 98765-4321', origem: 'Vitória, ES', destino: 'Vila Velha, ES', dataMudanca: futureDay(2), tipoServico: 'economico', valor: 900, stage: 'perdido', parceiro: '', motivoPerda: 'preco', createdAt: daysAgo(8), updatedAt: daysAgo(4) },
+  { id: '13', nome: 'Tatiana Nunes', telefone: '(62) 97654-3210', origem: 'Goiânia, GO', destino: 'Anápolis, GO', dataMudanca: futureDay(14), tipoServico: 'completo', valor: 3800, stage: 'perdido', parceiro: '', motivoPerda: 'concorrencia', createdAt: daysAgo(9), updatedAt: daysAgo(6) },
+  { id: '14', nome: 'Eduardo Mendes', telefone: '(81) 96543-2109', origem: 'Recife, PE', destino: 'João Pessoa, PB', dataMudanca: futureDay(22), tipoServico: 'completo', valor: 7200, stage: 'lead_novo', parceiro: '', createdAt: daysAgo(0.1), updatedAt: daysAgo(0.1) },
+  { id: '15', nome: 'Bianca Araujo', telefone: '(92) 95432-1098', origem: 'Manaus, AM', destino: 'Belém, PA', dataMudanca: futureDay(30), tipoServico: 'completo', valor: 15000, stage: 'orcamento_enviado', parceiro: 'Amazônia Transportes', createdAt: daysAgo(6), updatedAt: daysAgo(3) },
+  { id: '16', nome: 'André Cardoso', telefone: '(48) 94321-0987', origem: 'Florianópolis, SC', destino: 'Curitiba, PR', dataMudanca: futureDay(9), tipoServico: 'economico', valor: 3200, stage: 'perdido', parceiro: '', motivoPerda: 'desistiu', createdAt: daysAgo(11), updatedAt: daysAgo(7) },
+  { id: '17', nome: 'Renata Dias', telefone: '(16) 93210-9876', origem: 'Ribeirão Preto, SP', destino: 'São Paulo, SP', dataMudanca: futureDay(16), tipoServico: 'completo', valor: 6800, stage: 'negociacao', parceiro: 'Interior Mudanças', createdAt: daysAgo(4), updatedAt: daysAgo(2) },
+  { id: '18', nome: 'Felipe Moreira', telefone: '(67) 92109-8765', origem: 'Campo Grande, MS', destino: 'Cuiabá, MT', dataMudanca: futureDay(28), tipoServico: 'completo', valor: 11000, stage: 'qualificacao', parceiro: '', createdAt: daysAgo(2), updatedAt: daysAgo(0.5) },
+];
