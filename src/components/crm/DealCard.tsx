@@ -1,6 +1,7 @@
 import { Deal } from '@/types/crm';
 import { formatCurrency, getStageConfig, isStuckDeal, isHotDeal, isNewDeal } from '@/lib/crm-utils';
-import { MapPin, Calendar, Clock, Flame } from 'lucide-react';
+import { useAuth } from '@/contexts/AuthContext';
+import { MapPin, Calendar, Clock, Flame, User } from 'lucide-react';
 import { format } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
 
@@ -10,6 +11,7 @@ interface DealCardProps {
 }
 
 const DealCard = ({ deal, onClick }: DealCardProps) => {
+  const { isHead } = useAuth();
   const stuck = isStuckDeal(deal);
   const hot = isHotDeal(deal);
   const isNew = isNewDeal(deal);
@@ -29,15 +31,26 @@ const DealCard = ({ deal, onClick }: DealCardProps) => {
         )}
       </div>
 
+      {isHead && deal.sellerName && (
+        <div className="flex items-center gap-1 mb-2">
+          <span className="inline-flex items-center gap-1 text-[10px] font-semibold px-1.5 py-0.5 rounded bg-primary/10 text-primary truncate">
+            <User className="w-2.5 h-2.5 shrink-0" />
+            Vendedor: {deal.sellerName}
+          </span>
+        </div>
+      )}
+
       <div className="flex items-center gap-1 text-xs text-muted-foreground mb-2">
         <MapPin className="w-3 h-3 shrink-0" />
         <span className="truncate">{deal.origem} → {deal.destino}</span>
       </div>
 
-      <div className="flex items-center gap-1 text-xs text-muted-foreground mb-3">
-        <Calendar className="w-3 h-3 shrink-0" />
-        <span>{format(new Date(deal.dataMudanca), "dd MMM yyyy", { locale: ptBR })}</span>
-      </div>
+      {deal.dataMudanca && (
+        <div className="flex items-center gap-1 text-xs text-muted-foreground mb-3">
+          <Calendar className="w-3 h-3 shrink-0" />
+          <span>{format(new Date(deal.dataMudanca), "dd MMM yyyy", { locale: ptBR })}</span>
+        </div>
+      )}
 
       <div className="flex items-center justify-between">
         <span className="text-sm font-bold text-card-foreground flex items-center gap-1">
