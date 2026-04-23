@@ -1,9 +1,13 @@
 import { useCRM } from '@/contexts/CRMContext';
+import { useAuth } from '@/contexts/AuthContext';
 import { STAGES, Stage } from '@/types/crm';
-import { Search, SlidersHorizontal, ArrowUpDown } from 'lucide-react';
+import { Search, SlidersHorizontal, ArrowUpDown, User } from 'lucide-react';
 
 const FilterBar = () => {
-  const { filters, setFilters, sortField, setSortField, sortDirection, setSortDirection } = useCRM();
+  const { filters, setFilters, sortField, setSortField, sortDirection, setSortDirection, profiles } = useCRM();
+  const { isHead } = useAuth();
+
+  const sellers = profiles.filter(p => p.role === 'vendedor');
 
   return (
     <div className="filter-bar">
@@ -28,6 +32,20 @@ const FilterBar = () => {
           {STAGES.map(s => <option key={s.id} value={s.id}>{s.label}</option>)}
         </select>
       </div>
+
+      {isHead && sellers.length > 0 && (
+        <div className="flex items-center gap-1.5">
+          <User className="w-4 h-4 text-muted-foreground" />
+          <select
+            value={filters.sellerId || ''}
+            onChange={e => setFilters({ ...filters, sellerId: e.target.value || undefined })}
+            className="px-3 py-2 text-sm bg-muted border border-border rounded-lg text-card-foreground focus:outline-none focus:ring-2 focus:ring-primary/50"
+          >
+            <option value="">Todos vendedores</option>
+            {sellers.map(s => <option key={s.id} value={s.id}>{s.name}</option>)}
+          </select>
+        </div>
+      )}
 
       <input
         type="number"

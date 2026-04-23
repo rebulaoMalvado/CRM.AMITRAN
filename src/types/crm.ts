@@ -4,8 +4,20 @@ export type ServiceType = 'economico' | 'completo';
 
 export type LossReason = 'preco' | 'concorrencia' | 'desistiu' | 'sem_resposta' | 'outro';
 
+export type UserRole = 'vendedor' | 'head';
+
+export interface Profile {
+  id: string;
+  email: string;
+  name: string;
+  role: UserRole;
+  created_at: string;
+}
+
 export interface Deal {
   id: string;
+  sellerId: string;
+  sellerName?: string;
   nome: string;
   telefone: string;
   origem: string;
@@ -16,6 +28,7 @@ export interface Deal {
   stage: Stage;
   parceiro: string;
   motivoPerda?: LossReason;
+  closedAt?: string;
   createdAt: string;
   updatedAt: string;
 }
@@ -57,6 +70,7 @@ export interface Filters {
   valueMin?: number;
   valueMax?: number;
   search?: string;
+  sellerId?: string;
 }
 
 export type SortField = 'valor' | 'createdAt' | 'dataMudanca';

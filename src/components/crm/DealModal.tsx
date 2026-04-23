@@ -1,15 +1,16 @@
 import { useState, useEffect } from 'react';
 import { Deal, Stage, ServiceType, LossReason, STAGES, LOSS_REASONS, SERVICE_TYPES } from '@/types/crm';
-import { formatCurrency, getStageConfig } from '@/lib/crm-utils';
+import { getStageConfig } from '@/lib/crm-utils';
+import { useAuth } from '@/contexts/AuthContext';
 import { X, Trash2, Save, MapPin, Phone, Calendar, User, Truck } from 'lucide-react';
 
 interface DealModalProps {
   deal?: Deal | null;
   isOpen: boolean;
   onClose: () => void;
-  onSave: (deal: Omit<Deal, 'id' | 'createdAt' | 'updatedAt'>) => void;
-  onUpdate?: (id: string, updates: Partial<Deal>) => void;
-  onDelete?: (id: string) => void;
+  onSave: (deal: Omit<Deal, 'id' | 'createdAt' | 'updatedAt' | 'sellerId' | 'sellerName'>) => void | Promise<void>;
+  onUpdate?: (id: string, updates: Partial<Deal>) => void | Promise<void>;
+  onDelete?: (id: string) => void | Promise<void>;
 }
 
 const emptyForm = {
@@ -19,6 +20,7 @@ const emptyForm = {
 };
 
 const DealModal = ({ deal, isOpen, onClose, onSave, onUpdate, onDelete }: DealModalProps) => {
+  const { isHead } = useAuth();
   const [form, setForm] = useState(emptyForm);
   const isEditing = !!deal;
 
@@ -50,12 +52,20 @@ const DealModal = ({ deal, isOpen, onClose, onSave, onUpdate, onDelete }: DealMo
         <div className="flex items-center justify-between p-5 border-b border-border">
           <div>
             <h2 className="text-lg font-bold text-card-foreground">{isEditing ? 'Editar Deal' : 'Novo Deal'}</h2>
-            {isEditing && (
-              <span className={`stage-badge mt-1 ${stageConfig.bgColor} ${stageConfig.textColor}`}>
-                <span className={`w-1.5 h-1.5 rounded-full ${stageConfig.color}`} />
-                {stageConfig.label}
-              </span>
-            )}
+            <div className="flex items-center gap-2 mt-1 flex-wrap">
+              {isEditing && (
+                <span className={`stage-badge ${stageConfig.bgColor} ${stageConfig.textColor}`}>
+                  <span className={`w-1.5 h-1.5 rounded-full ${stageConfig.color}`} />
+                  {stageConfig.label}
+                </span>
+              )}
+              {isEditing && isHead && deal?.sellerName && (
+                <span className="inline-flex items-center gap-1 text-[11px] font-semibold px-2 py-0.5 rounded bg-primary/10 text-primary">
+                  <User className="w-3 h-3" />
+                  Vendedor: {deal.sellerName}
+                </span>
+              )}
+            </div>
           </div>
           <button onClick={onClose} className="p-2 rounded-lg hover:bg-muted transition-colors"><X className="w-4 h-4" /></button>
         </div>
