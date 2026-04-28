@@ -7,7 +7,7 @@ import Charts from '@/components/crm/Charts';
 import Pipeline from '@/components/crm/Pipeline';
 import FilterBar from '@/components/crm/FilterBar';
 import CSVActions from '@/components/crm/CSVActions';
-import { BarChart3, ChevronDown, ChevronUp, LogOut, Users, FileBarChart } from 'lucide-react';
+import { BarChart3, ChevronDown, ChevronUp, LogOut, Users, FileBarChart, Briefcase } from 'lucide-react';
 
 const CRMDashboard = () => {
   const [showCharts, setShowCharts] = useState(false);
@@ -31,6 +31,14 @@ const CRMDashboard = () => {
           </div>
 
           <div className="flex items-center gap-2">
+            <Link
+              to="/carteira"
+              className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium rounded-md bg-muted text-muted-foreground hover:text-card-foreground hover:bg-accent transition-colors"
+              title="Carteira de prospects"
+            >
+              <Briefcase className="w-3.5 h-3.5" />
+              <span className="hidden sm:inline">Carteira</span>
+            </Link>
             {isHead && (
               <>
                 <Link
