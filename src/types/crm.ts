@@ -75,3 +75,38 @@ export interface Filters {
 
 export type SortField = 'valor' | 'createdAt' | 'dataMudanca';
 export type SortDirection = 'asc' | 'desc';
+
+// ----- Prospects (carteira) -----
+export type ProspectStatus = 'frio' | 'morno' | 'quente';
+
+export const PROSPECT_STATUS_LABEL: Record<ProspectStatus, string> = {
+  frio: 'Frio',
+  morno: 'Morno',
+  quente: 'Quente',
+};
+
+export interface Prospect {
+  id: string;
+  sellerId: string;
+  sellerName?: string;
+  empresa: string;
+  contatoNome: string;
+  telefone: string;
+  email: string;
+  status: ProspectStatus;
+  ultimoContato?: string;
+  proximoContato?: string;
+  observacoes: string;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface ProspectFilters {
+  search?: string;
+  status?: ProspectStatus | '';
+  sellerId?: string;
+  /** 'todos' | 'sem_proximo' | 'vencidos' | 'esta_semana' */
+  proximoContato?: 'todos' | 'sem_proximo' | 'vencidos' | 'esta_semana';
+}
+
+export type ProspectSortField = 'empresa' | 'ultimoContato' | 'proximoContato' | 'status';
