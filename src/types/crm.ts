@@ -101,6 +101,17 @@ export interface DealInstallmentDraft {
   receivedAmount?: number;
 }
 
+/** Parcela já com os dados básicos do deal (cliente + vendedor) — usada na tela /parcelas. */
+export interface InstallmentWithDeal extends DealInstallment {
+  dealNome: string;
+  dealSellerId: string;
+  dealSellerName?: string;
+  /** Total de parcelas do deal — pra exibir "Parcela X/Y". */
+  dealInstallmentsTotal: number;
+}
+
+export type InstallmentStatusFilter = 'todas' | 'previstas' | 'recebidas';
+
 // ----- Prospects (carteira) -----
 export type ProspectStatus = 'frio' | 'morno' | 'quente';
 

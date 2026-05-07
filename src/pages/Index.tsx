@@ -7,7 +7,7 @@ import Charts from '@/components/crm/Charts';
 import Pipeline from '@/components/crm/Pipeline';
 import FilterBar from '@/components/crm/FilterBar';
 import CSVActions from '@/components/crm/CSVActions';
-import { BarChart3, ChevronDown, ChevronUp, LogOut, Users, FileBarChart, Briefcase } from 'lucide-react';
+import { BarChart3, ChevronDown, ChevronUp, LogOut, Users, FileBarChart, Briefcase, Wallet } from 'lucide-react';
 
 const CRMDashboard = () => {
   const [showCharts, setShowCharts] = useState(false);
@@ -40,24 +40,32 @@ const CRMDashboard = () => {
               <span className="hidden sm:inline">Carteira</span>
             </Link>
             {isHead && (
-              <>
-                <Link
-                  to="/admin"
-                  className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium rounded-md bg-muted text-muted-foreground hover:text-card-foreground hover:bg-accent transition-colors"
-                  title="Gerenciar vendedores"
-                >
-                  <Users className="w-3.5 h-3.5" />
-                  <span className="hidden sm:inline">Vendedores</span>
-                </Link>
-                <Link
-                  to="/relatorio"
-                  className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium rounded-md bg-muted text-muted-foreground hover:text-card-foreground hover:bg-accent transition-colors"
-                  title="Relatório mensal"
-                >
-                  <FileBarChart className="w-3.5 h-3.5" />
-                  <span className="hidden sm:inline">Relatório</span>
-                </Link>
-              </>
+              <Link
+                to="/admin"
+                className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium rounded-md bg-muted text-muted-foreground hover:text-card-foreground hover:bg-accent transition-colors"
+                title="Gerenciar vendedores"
+              >
+                <Users className="w-3.5 h-3.5" />
+                <span className="hidden sm:inline">Vendedores</span>
+              </Link>
+            )}
+            <Link
+              to="/parcelas"
+              className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium rounded-md bg-muted text-muted-foreground hover:text-card-foreground hover:bg-accent transition-colors"
+              title="Parcelas de pagamento"
+            >
+              <Wallet className="w-3.5 h-3.5" />
+              <span className="hidden sm:inline">Parcelas</span>
+            </Link>
+            {isHead && (
+              <Link
+                to="/relatorio"
+                className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium rounded-md bg-muted text-muted-foreground hover:text-card-foreground hover:bg-accent transition-colors"
+                title="Relatório mensal"
+              >
+                <FileBarChart className="w-3.5 h-3.5" />
+                <span className="hidden sm:inline">Relatório</span>
+              </Link>
             )}
             <CSVActions />
             <button

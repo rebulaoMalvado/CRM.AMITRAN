@@ -1,5 +1,5 @@
 import { supabase } from '@/lib/supabase';
-import { DealInstallment, DealInstallmentDraft } from '@/types/crm';
+import { DealInstallment, DealInstallmentDraft, InstallmentWithDeal, Profile } from '@/types/crm';
 
 type InstallmentRow = {
   id: string;
@@ -89,4 +89,78 @@ export async function saveInstallments(
       .eq('id', d.id!);
     if (error) throw error;
   }
+}
+
+export async function markInstallmentReceived(
+  id: string,
+  receivedDate: string,
+  receivedAmount: number
+): Promise<DealInstallment> {
+  const { data, error } = await supabase
+    .from('deal_installments')
+    .update({
+      is_received: true,
+      received_date: receivedDate,
+      received_amount: receivedAmount,
+    })
+    .eq('id', id)
+    .select()
+    .single();
+  if (error) throw error;
+  return rowToInstallment(data as InstallmentRow);
+}
+
+export async function unmarkInstallmentReceived(id: string): Promise<DealInstallment> {
+  const { data, error } = await supabase
+    .from('deal_installments')
+    .update({
+      is_received: false,
+      received_date: null,
+      received_amount: null,
+    })
+    .eq('id', id)
+    .select()
+    .single();
+  if (error) throw error;
+  return rowToInstallment(data as InstallmentRow);
+}
+
+type InstallmentWithDealRow = InstallmentRow & {
+  deal: { id: string; nome: string; seller_id: string } | null;
+};
+
+/**
+ * Busca todas as parcelas com o nome do cliente e seller_id num único query (JOIN
+ * via embedding do supabase). Resolve o nome do vendedor a partir do mapa de profiles
+ * passado pelo chamador. Devolve também o total de parcelas do deal pra exibir
+ * "Parcela X/Y" sem N+1.
+ */
+export async function fetchAllInstallmentsWithDeal(
+  profileMap: Map<string, Profile>
+): Promise<InstallmentWithDeal[]> {
+  const { data, error } = await supabase
+    .from('deal_installments')
+    .select('*, deal:deals!inner(id, nome, seller_id)')
+    .order('due_date', { ascending: true });
+  if (error) throw error;
+
+  const rows = (data || []) as InstallmentWithDealRow[];
+
+  const totalsByDeal = new Map<string, number>();
+  for (const r of rows) {
+    totalsByDeal.set(r.deal_id, (totalsByDeal.get(r.deal_id) || 0) + 1);
+  }
+
+  return rows
+    .filter(r => r.deal != null)
+    .map(r => {
+      const base = rowToInstallment(r);
+      return {
+        ...base,
+        dealNome: r.deal!.nome,
+        dealSellerId: r.deal!.seller_id,
+        dealSellerName: profileMap.get(r.deal!.seller_id)?.name,
+        dealInstallmentsTotal: totalsByDeal.get(r.deal_id) || 1,
+      };
+    });
 }
