@@ -164,3 +164,93 @@ export async function fetchAllInstallmentsWithDeal(
       };
     });
 }
+
+/**
+ * Busca parcelas com due_date dentro do range (inclusivo) já com o deal embutido.
+ * Faz uma segunda query rasa pra somar o total de parcelas de cada deal envolvido,
+ * preservando o "Parcela X/Y" mesmo quando outras parcelas do mesmo deal caem fora
+ * do range. Sem N+1 — duas queries fixas.
+ */
+export async function fetchInstallmentsByDueDateRange(
+  startISO: string,
+  endISO: string,
+  profileMap: Map<string, Profile>
+): Promise<InstallmentWithDeal[]> {
+  const { data, error } = await supabase
+    .from('deal_installments')
+    .select('*, deal:deals!inner(id, nome, seller_id)')
+    .gte('due_date', startISO)
+    .lte('due_date', endISO)
+    .order('due_date', { ascending: true });
+  if (error) throw error;
+
+  const rows = (data || []) as InstallmentWithDealRow[];
+  if (rows.length === 0) return [];
+
+  const dealIds = Array.from(new Set(rows.map(r => r.deal_id)));
+  const { data: countRows, error: countErr } = await supabase
+    .from('deal_installments')
+    .select('deal_id')
+    .in('deal_id', dealIds);
+  if (countErr) throw countErr;
+
+  const totalsByDeal = new Map<string, number>();
+  for (const r of (countRows || []) as { deal_id: string }[]) {
+    totalsByDeal.set(r.deal_id, (totalsByDeal.get(r.deal_id) || 0) + 1);
+  }
+
+  return rows
+    .filter(r => r.deal != null)
+    .map(r => {
+      const base = rowToInstallment(r);
+      return {
+        ...base,
+        dealNome: r.deal!.nome,
+        dealSellerId: r.deal!.seller_id,
+        dealSellerName: profileMap.get(r.deal!.seller_id)?.name,
+        dealInstallmentsTotal: totalsByDeal.get(r.deal_id) || 1,
+      };
+    });
+}
+
+/**
+ * Soma e contagem das parcelas em aberto (is_received=false) com due_date até a
+ * data informada (inclusivo). Acumulativo: inclui parcelas vencidas de meses
+ * anteriores que ainda não foram recebidas.
+ */
+export async function fetchOpenInstallmentsUntil(
+  endISO: string
+): Promise<{ total: number; count: number }> {
+  const { data, error } = await supabase
+    .from('deal_installments')
+    .select('amount')
+    .eq('is_received', false)
+    .lte('due_date', endISO);
+  if (error) throw error;
+  const rows = (data || []) as { amount: number | string }[];
+  const total = rows.reduce((s, r) => s + (Number(r.amount) || 0), 0);
+  return { total, count: rows.length };
+}
+
+/**
+ * Soma e contagem das parcelas recebidas com received_date dentro do range
+ * (inclusivo). Usa received_amount (valor real) como base do total.
+ */
+export async function fetchReceivedInstallmentsInRange(
+  startISO: string,
+  endISO: string
+): Promise<{ total: number; count: number }> {
+  const { data, error } = await supabase
+    .from('deal_installments')
+    .select('amount, received_amount')
+    .eq('is_received', true)
+    .gte('received_date', startISO)
+    .lte('received_date', endISO);
+  if (error) throw error;
+  const rows = (data || []) as { amount: number | string; received_amount: number | string | null }[];
+  const total = rows.reduce(
+    (s, r) => s + (r.received_amount != null ? Number(r.received_amount) : Number(r.amount) || 0),
+    0
+  );
+  return { total, count: rows.length };
+}
