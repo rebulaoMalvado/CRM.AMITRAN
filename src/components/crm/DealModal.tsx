@@ -1,10 +1,10 @@
 import { useState, useEffect, useMemo } from 'react';
 import { Deal, Stage, ServiceType, LossReason, DealInstallmentDraft, STAGES, LOSS_REASONS, SERVICE_TYPES } from '@/types/crm';
 import { getStageConfig, formatCurrency } from '@/lib/crm-utils';
-import { fetchInstallmentsByDeal, saveInstallments } from '@/lib/installments';
+import { fetchInstallmentsByDeal, saveInstallments, markInstallmentReceived, unmarkInstallmentReceived } from '@/lib/installments';
 import { useAuth } from '@/contexts/AuthContext';
 import { toast } from 'sonner';
-import { X, Trash2, Save, MapPin, Phone, Calendar, User, Truck, Plus, Wallet } from 'lucide-react';
+import { X, Trash2, Save, MapPin, Phone, Calendar, User, Truck, Plus, Wallet, CheckCircle2, Undo2 } from 'lucide-react';
 
 interface DealModalProps {
   deal?: Deal | null;
@@ -26,6 +26,13 @@ const todayISO = () => {
   return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
 };
 
+const formatDateBR = (iso: string) => {
+  const [y, m, d] = iso.split('-');
+  return `${d}/${m}/${y}`;
+};
+
+type ReceiptForm = { idx: number; date: string; amount: number };
+
 const DealModal = ({ deal, isOpen, onClose, onSave, onUpdate, onDelete }: DealModalProps) => {
   const { isHead } = useAuth();
   const [form, setForm] = useState(emptyForm);
@@ -33,6 +40,8 @@ const DealModal = ({ deal, isOpen, onClose, onSave, onUpdate, onDelete }: DealMo
   const [deletedInstallmentIds, setDeletedInstallmentIds] = useState<string[]>([]);
   const [installmentsLoaded, setInstallmentsLoaded] = useState(false);
   const [submitting, setSubmitting] = useState(false);
+  const [receiptForm, setReceiptForm] = useState<ReceiptForm | null>(null);
+  const [undoIdx, setUndoIdx] = useState<number | null>(null);
   const isEditing = !!deal;
   const showInstallments = isEditing && form.stage === 'fechado';
 
@@ -45,9 +54,10 @@ const DealModal = ({ deal, isOpen, onClose, onSave, onUpdate, onDelete }: DealMo
     setInstallments([]);
     setDeletedInstallmentIds([]);
     setInstallmentsLoaded(false);
+    setReceiptForm(null);
+    setUndoIdx(null);
   }, [deal]);
 
-  // Carrega parcelas existentes quando o modal abre pra um deal existente
   useEffect(() => {
     if (!isOpen || !deal) return;
     let cancelled = false;
@@ -74,7 +84,6 @@ const DealModal = ({ deal, isOpen, onClose, onSave, onUpdate, onDelete }: DealMo
     return () => { cancelled = true; };
   }, [isOpen, deal]);
 
-  // Cria 1 parcela default quando o deal vira "fechado" e ainda não tem parcela
   useEffect(() => {
     if (!showInstallments || !installmentsLoaded) return;
     setInstallments(prev => {
@@ -86,7 +95,6 @@ const DealModal = ({ deal, isOpen, onClose, onSave, onUpdate, onDelete }: DealMo
         isReceived: false,
       }];
     });
-    // form.valor não é dep de propósito: o default usa o valor vigente no momento da criação
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [showInstallments, installmentsLoaded]);
 
@@ -94,6 +102,11 @@ const DealModal = ({ deal, isOpen, onClose, onSave, onUpdate, onDelete }: DealMo
     () => installments.reduce((sum, i) => sum + (Number(i.amount) || 0), 0),
     [installments]
   );
+  const totalReceived = useMemo(
+    () => installments.reduce((sum, i) => sum + (i.isReceived ? Number(i.receivedAmount ?? i.amount) || 0 : 0), 0),
+    [installments]
+  );
+  const totalOpen = installmentsSum - totalReceived;
   const sumMismatch = Math.abs(installmentsSum - form.valor) >= 0.005;
   const installmentsInvalid = showInstallments && sumMismatch;
 
@@ -124,6 +137,51 @@ const DealModal = ({ deal, isOpen, onClose, onSave, onUpdate, onDelete }: DealMo
       }
       return prev.filter((_, i) => i !== idx).map((it, i) => ({ ...it, installmentNumber: i + 1 }));
     });
+    setReceiptForm(prev => (prev && prev.idx === idx ? null : prev));
+    setUndoIdx(prev => (prev === idx ? null : prev));
+  };
+
+  const openReceiptForm = (idx: number) => {
+    const it = installments[idx];
+    setUndoIdx(null);
+    setReceiptForm({ idx, date: todayISO(), amount: it.amount });
+  };
+
+  const confirmReceipt = async () => {
+    if (!receiptForm) return;
+    const target = installments[receiptForm.idx];
+    if (!target?.id) return;
+    try {
+      const updated = await markInstallmentReceived(target.id, receiptForm.date, receiptForm.amount);
+      setInstallments(prev => prev.map((it, i) => (
+        i === receiptForm.idx
+          ? { ...it, isReceived: true, receivedDate: updated.receivedDate, receivedAmount: updated.receivedAmount }
+          : it
+      )));
+      setReceiptForm(null);
+      toast.success('Parcela marcada como recebida');
+    } catch (err) {
+      const message = err instanceof Error ? err.message : 'desconhecido';
+      toast.error('Erro ao marcar recebimento: ' + message);
+    }
+  };
+
+  const confirmUndo = async (idx: number) => {
+    const target = installments[idx];
+    if (!target?.id) return;
+    try {
+      await unmarkInstallmentReceived(target.id);
+      setInstallments(prev => prev.map((it, i) => (
+        i === idx
+          ? { ...it, isReceived: false, receivedDate: undefined, receivedAmount: undefined }
+          : it
+      )));
+      setUndoIdx(null);
+      toast.success('Recebimento desfeito');
+    } catch (err) {
+      const message = err instanceof Error ? err.message : 'desconhecido';
+      toast.error('Erro ao desfazer: ' + message);
+    }
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -251,44 +309,156 @@ const DealModal = ({ deal, isOpen, onClose, onSave, onUpdate, onDelete }: DealMo
               </div>
 
               <div className="space-y-2">
-                {installments.map((it, idx) => (
-                  <div key={it.id ?? `new-${idx}`} className="flex items-end gap-2">
-                    <div className="w-20 shrink-0">
-                      <label className="text-xs font-medium text-muted-foreground mb-1 block">Parcela {idx + 1}</label>
-                      <div className="px-3 py-2 text-sm bg-muted/50 border border-border rounded-lg text-muted-foreground text-center">{idx + 1}</div>
+                {installments.map((it, idx) => {
+                  const received = it.isReceived;
+                  const containerCls = received
+                    ? 'border border-success/40 bg-success/5 rounded-lg p-2.5 space-y-2'
+                    : 'rounded-lg p-2.5 space-y-2';
+                  const isReceiptOpen = receiptForm?.idx === idx;
+                  const isUndoOpen = undoIdx === idx;
+
+                  return (
+                    <div key={it.id ?? `new-${idx}`} className={containerCls}>
+                      <div className="flex items-end gap-2">
+                        <div className="w-20 shrink-0">
+                          <label className="text-xs font-medium text-muted-foreground mb-1 block">
+                            Parcela {idx + 1}
+                          </label>
+                          <div className={`px-3 py-2 text-sm rounded-lg text-center flex items-center justify-center gap-1 ${received ? 'bg-success/15 text-success font-semibold' : 'bg-muted/50 border border-border text-muted-foreground'}`}>
+                            {received && <CheckCircle2 className="w-3.5 h-3.5" />}
+                            {idx + 1}
+                          </div>
+                        </div>
+                        <div className="flex-1">
+                          <label className="text-xs font-medium text-muted-foreground mb-1 block">Valor (R$)</label>
+                          <input
+                            type="number"
+                            min={0}
+                            step="0.01"
+                            value={it.amount}
+                            onChange={e => updateInstallment(idx, { amount: Number(e.target.value) })}
+                            disabled={received}
+                            className="w-full px-3 py-2 text-sm bg-muted border border-border rounded-lg text-card-foreground focus:outline-none focus:ring-2 focus:ring-primary/50 disabled:opacity-60 disabled:cursor-not-allowed"
+                          />
+                        </div>
+                        <div className="flex-1">
+                          <label className="text-xs font-medium text-muted-foreground mb-1 block">Vencimento</label>
+                          <input
+                            type="date"
+                            value={it.dueDate}
+                            onChange={e => updateInstallment(idx, { dueDate: e.target.value })}
+                            required
+                            disabled={received}
+                            className="w-full px-3 py-2 text-sm bg-muted border border-border rounded-lg text-card-foreground focus:outline-none focus:ring-2 focus:ring-primary/50 disabled:opacity-60 disabled:cursor-not-allowed"
+                          />
+                        </div>
+                        <button
+                          type="button"
+                          onClick={() => removeInstallment(idx)}
+                          disabled={installments.length <= 1}
+                          title={installments.length <= 1 ? 'Mínimo 1 parcela' : 'Remover parcela'}
+                          className="p-2 rounded-lg text-muted-foreground hover:text-destructive hover:bg-destructive/10 transition-colors disabled:opacity-30 disabled:cursor-not-allowed disabled:hover:bg-transparent disabled:hover:text-muted-foreground"
+                        >
+                          <X className="w-4 h-4" />
+                        </button>
+                      </div>
+
+                      {received && it.receivedDate && (
+                        <div className="text-xs text-success font-medium pl-1">
+                          Recebido em {formatDateBR(it.receivedDate)} — {formatCurrency(Number(it.receivedAmount ?? it.amount))}
+                        </div>
+                      )}
+
+                      {it.id && !received && !isReceiptOpen && (
+                        <button
+                          type="button"
+                          onClick={() => openReceiptForm(idx)}
+                          className="flex items-center gap-1.5 px-2.5 py-1 text-[11px] font-medium text-success bg-success/10 hover:bg-success/20 rounded transition-colors"
+                        >
+                          <CheckCircle2 className="w-3 h-3" /> Marcar como recebida
+                        </button>
+                      )}
+
+                      {it.id && received && !isUndoOpen && (
+                        <button
+                          type="button"
+                          onClick={() => { setReceiptForm(null); setUndoIdx(idx); }}
+                          className="flex items-center gap-1.5 px-2.5 py-1 text-[11px] font-medium text-muted-foreground hover:text-card-foreground bg-muted hover:bg-accent rounded transition-colors"
+                        >
+                          <Undo2 className="w-3 h-3" /> Desfazer recebimento
+                        </button>
+                      )}
+
+                      {isReceiptOpen && receiptForm && (
+                        <div className="bg-card border border-success/30 rounded-lg p-3 space-y-2">
+                          <div className="text-xs font-semibold text-card-foreground">Confirmar recebimento</div>
+                          <div className="grid grid-cols-2 gap-2">
+                            <div>
+                              <label className="text-[11px] text-muted-foreground mb-1 block">Data do recebimento</label>
+                              <input
+                                type="date"
+                                value={receiptForm.date}
+                                onChange={e => setReceiptForm({ ...receiptForm, date: e.target.value })}
+                                className="w-full px-2.5 py-1.5 text-sm bg-muted border border-border rounded-lg text-card-foreground focus:outline-none focus:ring-2 focus:ring-success/50"
+                              />
+                            </div>
+                            <div>
+                              <label className="text-[11px] text-muted-foreground mb-1 block">Valor recebido (R$)</label>
+                              <input
+                                type="number"
+                                min={0}
+                                step="0.01"
+                                value={receiptForm.amount}
+                                onChange={e => setReceiptForm({ ...receiptForm, amount: Number(e.target.value) })}
+                                className="w-full px-2.5 py-1.5 text-sm bg-muted border border-border rounded-lg text-card-foreground focus:outline-none focus:ring-2 focus:ring-success/50"
+                              />
+                            </div>
+                          </div>
+                          <div className="flex items-center gap-2">
+                            <button
+                              type="button"
+                              onClick={confirmReceipt}
+                              className="px-3 py-1.5 text-xs font-medium bg-success text-success-foreground rounded hover:opacity-90 transition-opacity"
+                            >
+                              Confirmar
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => setReceiptForm(null)}
+                              className="px-3 py-1.5 text-xs text-muted-foreground hover:bg-muted rounded transition-colors"
+                            >
+                              Cancelar
+                            </button>
+                          </div>
+                        </div>
+                      )}
+
+                      {isUndoOpen && (
+                        <div className="bg-card border border-border rounded-lg p-3 space-y-2">
+                          <div className="text-xs text-card-foreground">
+                            Desfazer o recebimento desta parcela? Os valores reais serão apagados.
+                          </div>
+                          <div className="flex items-center gap-2">
+                            <button
+                              type="button"
+                              onClick={() => confirmUndo(idx)}
+                              className="px-3 py-1.5 text-xs font-medium bg-destructive text-destructive-foreground rounded hover:opacity-90 transition-opacity"
+                            >
+                              Desfazer
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => setUndoIdx(null)}
+                              className="px-3 py-1.5 text-xs text-muted-foreground hover:bg-muted rounded transition-colors"
+                            >
+                              Cancelar
+                            </button>
+                          </div>
+                        </div>
+                      )}
                     </div>
-                    <div className="flex-1">
-                      <label className="text-xs font-medium text-muted-foreground mb-1 block">Valor (R$)</label>
-                      <input
-                        type="number"
-                        min={0}
-                        step="0.01"
-                        value={it.amount}
-                        onChange={e => updateInstallment(idx, { amount: Number(e.target.value) })}
-                        className="w-full px-3 py-2 text-sm bg-muted border border-border rounded-lg text-card-foreground focus:outline-none focus:ring-2 focus:ring-primary/50"
-                      />
-                    </div>
-                    <div className="flex-1">
-                      <label className="text-xs font-medium text-muted-foreground mb-1 block">Vencimento</label>
-                      <input
-                        type="date"
-                        value={it.dueDate}
-                        onChange={e => updateInstallment(idx, { dueDate: e.target.value })}
-                        required
-                        className="w-full px-3 py-2 text-sm bg-muted border border-border rounded-lg text-card-foreground focus:outline-none focus:ring-2 focus:ring-primary/50"
-                      />
-                    </div>
-                    <button
-                      type="button"
-                      onClick={() => removeInstallment(idx)}
-                      disabled={installments.length <= 1}
-                      title={installments.length <= 1 ? 'Mínimo 1 parcela' : 'Remover parcela'}
-                      className="p-2 rounded-lg text-muted-foreground hover:text-destructive hover:bg-destructive/10 transition-colors disabled:opacity-30 disabled:cursor-not-allowed disabled:hover:bg-transparent disabled:hover:text-muted-foreground"
-                    >
-                      <X className="w-4 h-4" />
-                    </button>
-                  </div>
-                ))}
+                  );
+                })}
               </div>
 
               <button
@@ -298,6 +468,12 @@ const DealModal = ({ deal, isOpen, onClose, onSave, onUpdate, onDelete }: DealMo
               >
                 <Plus className="w-3.5 h-3.5" /> Adicionar parcela
               </button>
+
+              <div className="text-xs text-muted-foreground bg-muted/40 border border-border rounded-lg px-3 py-2 flex flex-wrap gap-x-4 gap-y-1">
+                <span>Total previsto: <strong className="text-card-foreground">{formatCurrency(installmentsSum)}</strong></span>
+                <span>Total recebido: <strong className="text-success">{formatCurrency(totalReceived)}</strong></span>
+                <span>Em aberto: <strong className="text-card-foreground">{formatCurrency(totalOpen)}</strong></span>
+              </div>
 
               {sumMismatch && (
                 <div className="text-xs text-destructive bg-destructive/10 border border-destructive/30 rounded-lg px-3 py-2">
