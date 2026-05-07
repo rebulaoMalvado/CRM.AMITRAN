@@ -4,16 +4,10 @@ import { CRMProvider, useCRM } from '@/contexts/CRMContext';
 import { useAuth } from '@/contexts/AuthContext';
 import { Deal, InstallmentWithDeal, InstallmentStatusFilter } from '@/types/crm';
 import { fetchAllInstallmentsWithDeal } from '@/lib/installments';
-import { formatCurrency } from '@/lib/crm-utils';
 import DealModal from '@/components/crm/DealModal';
-import { ArrowLeft, LogOut, Loader2, CheckCircle2, Clock, User, SlidersHorizontal, Wallet } from 'lucide-react';
+import InstallmentsTable from '@/components/crm/InstallmentsTable';
+import { ArrowLeft, LogOut, User, SlidersHorizontal, Wallet } from 'lucide-react';
 import { toast } from 'sonner';
-
-const formatDateBR = (iso?: string) => {
-  if (!iso) return '—';
-  const [y, m, d] = iso.split('-');
-  return `${d}/${m}/${y}`;
-};
 
 const ParcelasInner = () => {
   const { profile, isHead, signOut } = useAuth();
@@ -60,8 +54,8 @@ const ParcelasInner = () => {
     });
   }, [installments, statusFilter, sellerFilter]);
 
-  const openDeal = (dealId: string) => {
-    const deal = deals.find(d => d.id === dealId);
+  const openDeal = (installment: InstallmentWithDeal) => {
+    const deal = deals.find(d => d.id === installment.dealId);
     if (!deal) {
       toast.error('Deal não encontrado');
       return;
@@ -134,78 +128,12 @@ const ParcelasInner = () => {
             </h2>
           </div>
 
-          {loading ? (
-            <div className="p-10 flex justify-center">
-              <Loader2 className="w-5 h-5 animate-spin text-muted-foreground" />
-            </div>
-          ) : (
-            <div className="overflow-x-auto">
-              <table className="w-full text-sm">
-                <thead className="bg-muted/50 text-xs uppercase text-muted-foreground">
-                  <tr>
-                    <th className="text-left px-4 py-2.5 font-medium">Cliente</th>
-                    <th className="text-left px-4 py-2.5 font-medium">Parcela</th>
-                    <th className="text-left px-4 py-2.5 font-medium">Valor previsto</th>
-                    <th className="text-left px-4 py-2.5 font-medium">Vencimento</th>
-                    <th className="text-left px-4 py-2.5 font-medium">Status</th>
-                    <th className="text-left px-4 py-2.5 font-medium">Recebido</th>
-                    {isHead && <th className="text-left px-4 py-2.5 font-medium">Vendedor</th>}
-                  </tr>
-                </thead>
-                <tbody>
-                  {filtered.map(i => (
-                    <tr
-                      key={i.id}
-                      className="border-t border-border hover:bg-muted/30 cursor-pointer"
-                      onClick={() => openDeal(i.dealId)}
-                    >
-                      <td className="px-4 py-2.5 font-medium text-card-foreground">{i.dealNome}</td>
-                      <td className="px-4 py-2.5 text-muted-foreground">
-                        Parcela {i.installmentNumber}/{i.dealInstallmentsTotal}
-                      </td>
-                      <td className="px-4 py-2.5 text-card-foreground">{formatCurrency(i.amount)}</td>
-                      <td className="px-4 py-2.5 text-muted-foreground text-xs">{formatDateBR(i.dueDate)}</td>
-                      <td className="px-4 py-2.5">
-                        {i.isReceived ? (
-                          <span className="inline-flex items-center gap-1 text-[10px] font-bold px-2 py-0.5 rounded bg-success/10 text-success">
-                            <CheckCircle2 className="w-3 h-3" /> RECEBIDA
-                          </span>
-                        ) : (
-                          <span className="inline-flex items-center gap-1 text-[10px] font-bold px-2 py-0.5 rounded bg-info/10 text-info">
-                            <Clock className="w-3 h-3" /> PREVISTA
-                          </span>
-                        )}
-                      </td>
-                      <td className="px-4 py-2.5 text-xs">
-                        {i.isReceived && i.receivedDate ? (
-                          <span className="text-success font-medium">
-                            {formatCurrency(Number(i.receivedAmount ?? i.amount))} · {formatDateBR(i.receivedDate)}
-                          </span>
-                        ) : (
-                          <span className="text-muted-foreground">—</span>
-                        )}
-                      </td>
-                      {isHead && (
-                        <td className="px-4 py-2.5 text-xs">
-                          <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded bg-primary/10 text-primary font-semibold">
-                            <User className="w-2.5 h-2.5" />
-                            {i.dealSellerName || '—'}
-                          </span>
-                        </td>
-                      )}
-                    </tr>
-                  ))}
-                  {filtered.length === 0 && (
-                    <tr>
-                      <td colSpan={isHead ? 7 : 6} className="px-4 py-10 text-center text-muted-foreground text-sm">
-                        Nenhuma parcela encontrada com os filtros atuais.
-                      </td>
-                    </tr>
-                  )}
-                </tbody>
-              </table>
-            </div>
-          )}
+          <InstallmentsTable
+            installments={filtered}
+            loading={loading}
+            isHead={isHead}
+            onRowClick={openDeal}
+          />
         </section>
 
         <p className="text-[11px] text-muted-foreground flex items-center gap-1">

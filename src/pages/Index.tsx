@@ -7,7 +7,7 @@ import Charts from '@/components/crm/Charts';
 import Pipeline from '@/components/crm/Pipeline';
 import FilterBar from '@/components/crm/FilterBar';
 import CSVActions from '@/components/crm/CSVActions';
-import { BarChart3, ChevronDown, ChevronUp, LogOut, Users, FileBarChart, Briefcase, Wallet } from 'lucide-react';
+import { BarChart3, ChevronDown, ChevronUp, LogOut, Users, FileBarChart, Briefcase, Wallet, DollarSign } from 'lucide-react';
 
 const CRMDashboard = () => {
   const [showCharts, setShowCharts] = useState(false);
@@ -56,6 +56,14 @@ const CRMDashboard = () => {
             >
               <Wallet className="w-3.5 h-3.5" />
               <span className="hidden sm:inline">Parcelas</span>
+            </Link>
+            <Link
+              to="/financeiro"
+              className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium rounded-md bg-muted text-muted-foreground hover:text-card-foreground hover:bg-accent transition-colors"
+              title="Dashboard financeiro"
+            >
+              <DollarSign className="w-3.5 h-3.5" />
+              <span className="hidden sm:inline">Financeiro</span>
             </Link>
             {isHead && (
               <Link
