@@ -210,6 +210,76 @@ drop policy if exists "prospects_delete" on public.prospects;
 create policy "prospects_delete" on public.prospects
   for delete using (seller_id = auth.uid() or public.is_head());
 
+-- ---------------------------------------------------------
+-- DEAL_INSTALLMENTS: parcelas de pagamento dos deals fechados
+-- ---------------------------------------------------------
+create table if not exists public.deal_installments (
+  id uuid primary key default gen_random_uuid(),
+  deal_id uuid not null references public.deals(id) on delete cascade,
+  installment_number int not null check (installment_number >= 1),
+  amount numeric not null default 0,
+  due_date date not null,
+  is_received boolean not null default false,
+  received_date date,
+  received_amount numeric,
+  created_at timestamptz not null default now(),
+  updated_at timestamptz not null default now()
+);
+
+create index if not exists idx_deal_installments_deal_id
+  on public.deal_installments(deal_id);
+
+create index if not exists idx_deal_installments_deal_id_number
+  on public.deal_installments(deal_id, installment_number);
+
+drop trigger if exists deal_installments_set_updated_at on public.deal_installments;
+create trigger deal_installments_set_updated_at
+  before update on public.deal_installments
+  for each row execute function public.set_updated_at();
+
+alter table public.deal_installments enable row level security;
+
+drop policy if exists "deal_installments_select" on public.deal_installments;
+create policy "deal_installments_select" on public.deal_installments
+  for select using (
+    public.is_head() or exists (
+      select 1 from public.deals d
+      where d.id = deal_installments.deal_id and d.seller_id = auth.uid()
+    )
+  );
+
+drop policy if exists "deal_installments_insert" on public.deal_installments;
+create policy "deal_installments_insert" on public.deal_installments
+  for insert with check (
+    public.is_head() or exists (
+      select 1 from public.deals d
+      where d.id = deal_installments.deal_id and d.seller_id = auth.uid()
+    )
+  );
+
+drop policy if exists "deal_installments_update" on public.deal_installments;
+create policy "deal_installments_update" on public.deal_installments
+  for update using (
+    public.is_head() or exists (
+      select 1 from public.deals d
+      where d.id = deal_installments.deal_id and d.seller_id = auth.uid()
+    )
+  ) with check (
+    public.is_head() or exists (
+      select 1 from public.deals d
+      where d.id = deal_installments.deal_id and d.seller_id = auth.uid()
+    )
+  );
+
+drop policy if exists "deal_installments_delete" on public.deal_installments;
+create policy "deal_installments_delete" on public.deal_installments
+  for delete using (
+    public.is_head() or exists (
+      select 1 from public.deals d
+      where d.id = deal_installments.deal_id and d.seller_id = auth.uid()
+    )
+  );
+
 -- =========================================================
 -- PROMOVER SEU USUÁRIO PRA HEAD
 -- (rode essa query DEPOIS de criar seu usuário em

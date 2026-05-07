@@ -1,8 +1,10 @@
-import { useState, useEffect } from 'react';
-import { Deal, Stage, ServiceType, LossReason, STAGES, LOSS_REASONS, SERVICE_TYPES } from '@/types/crm';
-import { getStageConfig } from '@/lib/crm-utils';
+import { useState, useEffect, useMemo } from 'react';
+import { Deal, Stage, ServiceType, LossReason, DealInstallmentDraft, STAGES, LOSS_REASONS, SERVICE_TYPES } from '@/types/crm';
+import { getStageConfig, formatCurrency } from '@/lib/crm-utils';
+import { fetchInstallmentsByDeal, saveInstallments } from '@/lib/installments';
 import { useAuth } from '@/contexts/AuthContext';
-import { X, Trash2, Save, MapPin, Phone, Calendar, User, Truck } from 'lucide-react';
+import { toast } from 'sonner';
+import { X, Trash2, Save, MapPin, Phone, Calendar, User, Truck, Plus, Wallet } from 'lucide-react';
 
 interface DealModalProps {
   deal?: Deal | null;
@@ -19,10 +21,20 @@ const emptyForm = {
   parceiro: '', motivoPerda: undefined as LossReason | undefined,
 };
 
+const todayISO = () => {
+  const d = new Date();
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+};
+
 const DealModal = ({ deal, isOpen, onClose, onSave, onUpdate, onDelete }: DealModalProps) => {
   const { isHead } = useAuth();
   const [form, setForm] = useState(emptyForm);
+  const [installments, setInstallments] = useState<DealInstallmentDraft[]>([]);
+  const [deletedInstallmentIds, setDeletedInstallmentIds] = useState<string[]>([]);
+  const [installmentsLoaded, setInstallmentsLoaded] = useState(false);
+  const [submitting, setSubmitting] = useState(false);
   const isEditing = !!deal;
+  const showInstallments = isEditing && form.stage === 'fechado';
 
   useEffect(() => {
     if (deal) {
@@ -30,18 +42,115 @@ const DealModal = ({ deal, isOpen, onClose, onSave, onUpdate, onDelete }: DealMo
     } else {
       setForm(emptyForm);
     }
+    setInstallments([]);
+    setDeletedInstallmentIds([]);
+    setInstallmentsLoaded(false);
   }, [deal]);
+
+  // Carrega parcelas existentes quando o modal abre pra um deal existente
+  useEffect(() => {
+    if (!isOpen || !deal) return;
+    let cancelled = false;
+    fetchInstallmentsByDeal(deal.id)
+      .then(rows => {
+        if (cancelled) return;
+        setInstallments(rows.map(r => ({
+          id: r.id,
+          installmentNumber: r.installmentNumber,
+          amount: r.amount,
+          dueDate: r.dueDate,
+          isReceived: r.isReceived,
+          receivedDate: r.receivedDate,
+          receivedAmount: r.receivedAmount,
+        })));
+        setInstallmentsLoaded(true);
+      })
+      .catch(err => {
+        if (cancelled) return;
+        const message = err instanceof Error ? err.message : 'desconhecido';
+        toast.error('Erro ao carregar parcelas: ' + message);
+        setInstallmentsLoaded(true);
+      });
+    return () => { cancelled = true; };
+  }, [isOpen, deal]);
+
+  // Cria 1 parcela default quando o deal vira "fechado" e ainda não tem parcela
+  useEffect(() => {
+    if (!showInstallments || !installmentsLoaded) return;
+    setInstallments(prev => {
+      if (prev.length > 0) return prev;
+      return [{
+        installmentNumber: 1,
+        amount: form.valor,
+        dueDate: todayISO(),
+        isReceived: false,
+      }];
+    });
+    // form.valor não é dep de propósito: o default usa o valor vigente no momento da criação
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [showInstallments, installmentsLoaded]);
+
+  const installmentsSum = useMemo(
+    () => installments.reduce((sum, i) => sum + (Number(i.amount) || 0), 0),
+    [installments]
+  );
+  const sumMismatch = Math.abs(installmentsSum - form.valor) >= 0.005;
+  const installmentsInvalid = showInstallments && sumMismatch;
 
   if (!isOpen) return null;
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const updateInstallment = (idx: number, patch: Partial<DealInstallmentDraft>) => {
+    setInstallments(prev => prev.map((it, i) => (i === idx ? { ...it, ...patch } : it)));
+  };
+
+  const addInstallment = () => {
+    setInstallments(prev => [
+      ...prev,
+      {
+        installmentNumber: prev.length + 1,
+        amount: 0,
+        dueDate: todayISO(),
+        isReceived: false,
+      },
+    ]);
+  };
+
+  const removeInstallment = (idx: number) => {
+    setInstallments(prev => {
+      if (prev.length <= 1) return prev;
+      const target = prev[idx];
+      if (target.id) {
+        setDeletedInstallmentIds(d => [...d, target.id!]);
+      }
+      return prev.filter((_, i) => i !== idx).map((it, i) => ({ ...it, installmentNumber: i + 1 }));
+    });
+  };
+
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (isEditing && onUpdate) {
-      onUpdate(deal!.id, form);
-    } else {
-      onSave(form);
+    if (submitting) return;
+    if (installmentsInvalid) return;
+    setSubmitting(true);
+    try {
+      if (isEditing && onUpdate) {
+        await onUpdate(deal!.id, form);
+        if (showInstallments) {
+          try {
+            await saveInstallments(deal!.id, installments, deletedInstallmentIds);
+          } catch (err) {
+            const message = err instanceof Error ? err.message : 'desconhecido';
+            toast.error('Erro ao salvar parcelas: ' + message);
+            setSubmitting(false);
+            return;
+          }
+        }
+      } else {
+        await onSave(form);
+      }
+      onClose();
+    } finally {
+      setSubmitting(false);
     }
-    onClose();
   };
 
   const stageConfig = getStageConfig(form.stage);
@@ -134,6 +243,70 @@ const DealModal = ({ deal, isOpen, onClose, onSave, onUpdate, onDelete }: DealMo
             </div>
           )}
 
+          {showInstallments && (
+            <div className="pt-3 border-t border-border space-y-3">
+              <div className="flex items-center gap-2">
+                <Wallet className="w-3.5 h-3.5 text-muted-foreground" />
+                <h3 className="text-sm font-semibold text-card-foreground">Parcelas de Pagamento</h3>
+              </div>
+
+              <div className="space-y-2">
+                {installments.map((it, idx) => (
+                  <div key={it.id ?? `new-${idx}`} className="flex items-end gap-2">
+                    <div className="w-20 shrink-0">
+                      <label className="text-xs font-medium text-muted-foreground mb-1 block">Parcela {idx + 1}</label>
+                      <div className="px-3 py-2 text-sm bg-muted/50 border border-border rounded-lg text-muted-foreground text-center">{idx + 1}</div>
+                    </div>
+                    <div className="flex-1">
+                      <label className="text-xs font-medium text-muted-foreground mb-1 block">Valor (R$)</label>
+                      <input
+                        type="number"
+                        min={0}
+                        step="0.01"
+                        value={it.amount}
+                        onChange={e => updateInstallment(idx, { amount: Number(e.target.value) })}
+                        className="w-full px-3 py-2 text-sm bg-muted border border-border rounded-lg text-card-foreground focus:outline-none focus:ring-2 focus:ring-primary/50"
+                      />
+                    </div>
+                    <div className="flex-1">
+                      <label className="text-xs font-medium text-muted-foreground mb-1 block">Vencimento</label>
+                      <input
+                        type="date"
+                        value={it.dueDate}
+                        onChange={e => updateInstallment(idx, { dueDate: e.target.value })}
+                        required
+                        className="w-full px-3 py-2 text-sm bg-muted border border-border rounded-lg text-card-foreground focus:outline-none focus:ring-2 focus:ring-primary/50"
+                      />
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() => removeInstallment(idx)}
+                      disabled={installments.length <= 1}
+                      title={installments.length <= 1 ? 'Mínimo 1 parcela' : 'Remover parcela'}
+                      className="p-2 rounded-lg text-muted-foreground hover:text-destructive hover:bg-destructive/10 transition-colors disabled:opacity-30 disabled:cursor-not-allowed disabled:hover:bg-transparent disabled:hover:text-muted-foreground"
+                    >
+                      <X className="w-4 h-4" />
+                    </button>
+                  </div>
+                ))}
+              </div>
+
+              <button
+                type="button"
+                onClick={addInstallment}
+                className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium text-primary bg-primary/10 hover:bg-primary/20 rounded-lg transition-colors"
+              >
+                <Plus className="w-3.5 h-3.5" /> Adicionar parcela
+              </button>
+
+              {sumMismatch && (
+                <div className="text-xs text-destructive bg-destructive/10 border border-destructive/30 rounded-lg px-3 py-2">
+                  Soma das parcelas: {formatCurrency(installmentsSum)}. Valor do contrato: {formatCurrency(form.valor)}. Diferença: {formatCurrency(Math.abs(installmentsSum - form.valor))}
+                </div>
+              )}
+            </div>
+          )}
+
           <div className="flex items-center gap-3 pt-3 border-t border-border">
             {isEditing && onDelete && (
               <button type="button" onClick={() => { onDelete(deal!.id); onClose(); }} className="flex items-center gap-1.5 px-3 py-2 text-sm text-destructive hover:bg-destructive/10 rounded-lg transition-colors">
@@ -142,7 +315,11 @@ const DealModal = ({ deal, isOpen, onClose, onSave, onUpdate, onDelete }: DealMo
             )}
             <div className="flex-1" />
             <button type="button" onClick={onClose} className="px-4 py-2 text-sm text-muted-foreground hover:bg-muted rounded-lg transition-colors">Cancelar</button>
-            <button type="submit" className="flex items-center gap-1.5 px-4 py-2 text-sm bg-primary text-primary-foreground rounded-lg hover:opacity-90 transition-opacity">
+            <button
+              type="submit"
+              disabled={installmentsInvalid || submitting}
+              className="flex items-center gap-1.5 px-4 py-2 text-sm bg-primary text-primary-foreground rounded-lg hover:opacity-90 transition-opacity disabled:opacity-50 disabled:cursor-not-allowed"
+            >
               <Save className="w-3.5 h-3.5" /> {isEditing ? 'Salvar' : 'Criar'}
             </button>
           </div>

@@ -76,6 +76,31 @@ export interface Filters {
 export type SortField = 'valor' | 'createdAt' | 'dataMudanca';
 export type SortDirection = 'asc' | 'desc';
 
+// ----- Parcelas de pagamento (deals fechados) -----
+export interface DealInstallment {
+  id: string;
+  dealId: string;
+  installmentNumber: number;
+  amount: number;
+  dueDate: string;
+  isReceived: boolean;
+  receivedDate?: string;
+  receivedAmount?: number;
+  createdAt: string;
+  updatedAt: string;
+}
+
+/** Forma usada no formulário do modal — id ausente = parcela nova ainda não persistida. */
+export interface DealInstallmentDraft {
+  id?: string;
+  installmentNumber: number;
+  amount: number;
+  dueDate: string;
+  isReceived: boolean;
+  receivedDate?: string;
+  receivedAmount?: number;
+}
+
 // ----- Prospects (carteira) -----
 export type ProspectStatus = 'frio' | 'morno' | 'quente';
 
