@@ -60,13 +60,35 @@ const KPICards = () => {
     return 'all';
   }, [monthOptions, selectedMonth]);
 
-  const filteredDeals = useMemo(() => {
-    if (effectiveMonth === 'all') return deals;
+  const monthRange = useMemo(() => {
+    if (effectiveMonth === 'all') return null;
     const [yy, mm] = effectiveMonth.split('-').map(Number);
-    const start = new Date(yy, mm - 1, 1).toISOString();
-    const end = new Date(yy, mm, 1).toISOString();
-    return deals.filter(d => d.createdAt >= start && d.createdAt < end);
-  }, [deals, effectiveMonth]);
+    return {
+      start: new Date(yy, mm - 1, 1).toISOString(),
+      end: new Date(yy, mm, 1).toISOString(),
+    };
+  }, [effectiveMonth]);
+
+  const filteredDeals = useMemo(() => {
+    if (!monthRange) return deals;
+    return deals.filter(d => d.createdAt >= monthRange.start && d.createdAt < monthRange.end);
+  }, [deals, monthRange]);
+
+  // Receita Total e Ticket Médio usam closed_at (mês em que o negócio foi
+  // efetivamente fechado), não created_at — pra refletir a "vendas do mês"
+  // do ponto de vista financeiro. Os demais cards seguem com created_at.
+  const closedInMonth = useMemo(() => {
+    const allClosed = deals.filter(d => d.stage === 'fechado');
+    if (!monthRange) return allClosed;
+    return allClosed.filter(d => !!d.closedAt && d.closedAt >= monthRange.start && d.closedAt < monthRange.end);
+  }, [deals, monthRange]);
+
+  const revenueByClosedAt = useMemo(
+    () => closedInMonth.reduce((s, d) => s + (Number(d.valor) || 0), 0),
+    [closedInMonth]
+  );
+  const closedCountByClosedAt = closedInMonth.length;
+  const avgTicketByClosedAt = closedCountByClosedAt > 0 ? revenueByClosedAt / closedCountByClosedAt : 0;
 
   const monthMetrics = useMemo(() => calculateMetrics(filteredDeals), [filteredDeals]);
   const globalMetrics = useMemo(() => calculateMetrics(deals), [deals]);
@@ -86,18 +108,18 @@ const KPICards = () => {
     ? `${monthMetrics.conversionRate.toFixed(1)}%`
     : '—';
 
-  const ticketValue = monthMetrics.closedCount > 0
-    ? formatCurrency(monthMetrics.avgTicket)
+  const ticketValue = closedCountByClosedAt > 0
+    ? formatCurrency(avgTicketByClosedAt)
     : '—';
 
-  const receitaSubtitle = `${monthMetrics.closedCount} deal${monthMetrics.closedCount === 1 ? '' : 's'} fechado${monthMetrics.closedCount === 1 ? '' : 's'}`;
+  const receitaSubtitle = `${closedCountByClosedAt} deal${closedCountByClosedAt === 1 ? '' : 's'} fechado${closedCountByClosedAt === 1 ? '' : 's'}`;
 
   const cards = [
     { label: 'Total Leads', value: monthMetrics.totalLeads.toString(), icon: Users, change: totalLeadsSubtitle, accent: 'text-info' },
     { label: 'Deals Fechados', value: monthMetrics.closedCount.toString(), icon: Target, change: fechadosSubtitle, accent: 'text-success' },
     { label: 'Taxa de Conversão', value: conversaoValue, icon: TrendingUp, change: 'do total de leads', accent: 'text-primary' },
     { label: 'Ticket Médio', value: ticketValue, icon: BarChart3, change: 'por deal fechado', accent: 'text-stage-negotiation' },
-    { label: 'Receita Total', value: formatCurrency(monthMetrics.totalRevenue), icon: DollarSign, change: receitaSubtitle, accent: 'text-success' },
+    { label: 'Receita Total', value: formatCurrency(revenueByClosedAt), icon: DollarSign, change: receitaSubtitle, accent: 'text-success' },
   ];
 
   return (
