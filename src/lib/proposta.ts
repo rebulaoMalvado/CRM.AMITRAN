@@ -225,24 +225,34 @@ async function waitForImages(doc: Document): Promise<void> {
   );
 }
 
-// CSS injetado APENAS no momento da impressão. Neutraliza o destaque amarelo
-// dos placeholders (.ph) — útil só no preview pra mostrar o que é editável,
-// mas no PDF deve sair como texto normal.
+// CSS injetado APENAS no contexto de impressão. Faz duas coisas:
+// 1. Força Chrome a imprimir backgrounds/cores (capa azul, fotos dos
+//    serviços que são background-image). Por padrão Chrome descarta
+//    backgrounds no print — `print-color-adjust: exact` ignora isso.
+// 2. Neutraliza o destaque amarelo dos placeholders (.ph) — visual só do
+//    preview, no PDF deve sair como texto normal.
 const PRINT_OVERRIDE_CSS = `
-  @media print, screen {
-    .ph {
-      display: inline !important;
-      background: transparent !important;
-      color: inherit !important;
-      border: none !important;
-      border-bottom: none !important;
-      padding: 0 !important;
-      border-radius: 0 !important;
-      font-family: inherit !important;
-      font-size: inherit !important;
-      font-weight: inherit !important;
-      letter-spacing: inherit !important;
-    }
+  *, *::before, *::after {
+    -webkit-print-color-adjust: exact !important;
+    print-color-adjust: exact !important;
+    color-adjust: exact !important;
+  }
+  html, body {
+    -webkit-print-color-adjust: exact !important;
+    print-color-adjust: exact !important;
+  }
+  .ph {
+    display: inline !important;
+    background: transparent !important;
+    color: inherit !important;
+    border: none !important;
+    border-bottom: none !important;
+    padding: 0 !important;
+    border-radius: 0 !important;
+    font-family: inherit !important;
+    font-size: inherit !important;
+    font-weight: inherit !important;
+    letter-spacing: inherit !important;
   }
 `;
 
