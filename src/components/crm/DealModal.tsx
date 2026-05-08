@@ -4,7 +4,10 @@ import { getStageConfig, formatCurrency } from '@/lib/crm-utils';
 import { fetchInstallmentsByDeal, saveInstallments, markInstallmentReceived, unmarkInstallmentReceived } from '@/lib/installments';
 import { useAuth } from '@/contexts/AuthContext';
 import { toast } from 'sonner';
-import { X, Trash2, Save, MapPin, Phone, Calendar, User, Truck, Plus, Wallet, CheckCircle2, Undo2 } from 'lucide-react';
+import { X, Trash2, Save, MapPin, Phone, Calendar, User, Truck, Plus, Wallet, CheckCircle2, Undo2, FileText } from 'lucide-react';
+import PropostaModal from './PropostaModal';
+
+const PROPOSTA_STAGES: Stage[] = ['orcamento_enviado', 'negociacao', 'fechado'];
 
 interface DealModalProps {
   deal?: Deal | null;
@@ -42,8 +45,10 @@ const DealModal = ({ deal, isOpen, onClose, onSave, onUpdate, onDelete }: DealMo
   const [submitting, setSubmitting] = useState(false);
   const [receiptForm, setReceiptForm] = useState<ReceiptForm | null>(null);
   const [undoIdx, setUndoIdx] = useState<number | null>(null);
+  const [showProposta, setShowProposta] = useState(false);
   const isEditing = !!deal;
   const showInstallments = isEditing && form.stage === 'fechado';
+  const canGerarProposta = isEditing && PROPOSTA_STAGES.includes(form.stage);
 
   useEffect(() => {
     if (deal) {
@@ -483,10 +488,19 @@ const DealModal = ({ deal, isOpen, onClose, onSave, onUpdate, onDelete }: DealMo
             </div>
           )}
 
-          <div className="flex items-center gap-3 pt-3 border-t border-border">
+          <div className="flex items-center gap-3 pt-3 border-t border-border flex-wrap">
             {isEditing && onDelete && (
               <button type="button" onClick={() => { onDelete(deal!.id); onClose(); }} className="flex items-center gap-1.5 px-3 py-2 text-sm text-destructive hover:bg-destructive/10 rounded-lg transition-colors">
                 <Trash2 className="w-3.5 h-3.5" /> Excluir
+              </button>
+            )}
+            {canGerarProposta && (
+              <button
+                type="button"
+                onClick={() => setShowProposta(true)}
+                className="flex items-center gap-1.5 px-3 py-2 text-sm text-primary hover:bg-primary/10 rounded-lg transition-colors"
+              >
+                <FileText className="w-3.5 h-3.5" /> Gerar Proposta
               </button>
             )}
             <div className="flex-1" />
@@ -501,6 +515,13 @@ const DealModal = ({ deal, isOpen, onClose, onSave, onUpdate, onDelete }: DealMo
           </div>
         </form>
       </div>
+      {canGerarProposta && deal && (
+        <PropostaModal
+          deal={deal}
+          isOpen={showProposta}
+          onClose={() => setShowProposta(false)}
+        />
+      )}
     </div>
   );
 };

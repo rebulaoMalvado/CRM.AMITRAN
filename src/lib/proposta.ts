@@ -1,0 +1,296 @@
+import html2canvas from 'html2canvas';
+import jsPDF from 'jspdf';
+
+const TEMPLATE_URL = '/templates/proposta-amitran.html';
+const NUMERO_PROPOSTA_DEFAULT = '6711.2026';
+
+export interface PropostaForm {
+  nomeCliente: string;
+  telefoneCliente: string;
+  volumeEstimado: string;
+  dataMudanca: string;
+  tipo: string;
+  origem: string;
+  destino: string;
+  valorMudanca: number;
+  valorSeguro: string;
+  nomeVendedor: string;
+  emailVendedor: string;
+}
+
+interface ManifestEntry {
+  mime: string;
+  compressed: boolean;
+  data: string;
+}
+
+interface ExtResource {
+  uuid: string;
+  id: string;
+}
+
+let cachedFlatTemplate: Promise<string> | null = null;
+
+const formatBRL = (n: number) =>
+  (Number.isFinite(n) ? n : 0).toLocaleString('pt-BR', {
+    minimumFractionDigits: 2,
+    maximumFractionDigits: 2,
+  });
+
+export const formatDateBR = (iso: string): string => {
+  if (!iso) return '';
+  const [y, m, d] = iso.split('-');
+  if (!y || !m || !d) return iso;
+  return `${d}/${m}/${y}`;
+};
+
+const todayBR = (): string => {
+  const d = new Date();
+  return `${String(d.getDate()).padStart(2, '0')}/${String(d.getMonth() + 1).padStart(2, '0')}/${d.getFullYear()}`;
+};
+
+const escapeHtml = (s: string): string =>
+  s
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#39;');
+
+const replaceAll = (haystack: string, needle: string, replacement: string): string =>
+  haystack.split(needle).join(replacement);
+
+const bytesToBase64 = (bytes: Uint8Array): string => {
+  let bin = '';
+  const CHUNK = 0x8000;
+  for (let i = 0; i < bytes.length; i += CHUNK) {
+    bin += String.fromCharCode.apply(null, Array.from(bytes.subarray(i, i + CHUNK)));
+  }
+  return btoa(bin);
+};
+
+async function gunzip(bytes: Uint8Array): Promise<Uint8Array> {
+  const DS = (globalThis as { DecompressionStream?: typeof DecompressionStream }).DecompressionStream;
+  if (!DS) throw new Error('DecompressionStream não suportado neste navegador');
+  const ds = new DS('gzip');
+  const writer = ds.writable.getWriter();
+  void writer.write(bytes);
+  void writer.close();
+  const reader = ds.readable.getReader();
+  const chunks: Uint8Array[] = [];
+  let total = 0;
+  while (true) {
+    const { done, value } = await reader.read();
+    if (done) break;
+    chunks.push(value);
+    total += value.length;
+  }
+  const out = new Uint8Array(total);
+  let off = 0;
+  for (const c of chunks) {
+    out.set(c, off);
+    off += c.length;
+  }
+  return out;
+}
+
+/**
+ * Lê o template "bundler" e retorna um HTML auto-contido com todos os assets
+ * convertidos em data: URLs. Os placeholders {{...}} e os 3 campos editáveis
+ * (volume / tipo / valor seguro) permanecem intactos para serem substituídos
+ * por applyFormToTemplate.
+ */
+async function loadFlatTemplate(): Promise<string> {
+  if (cachedFlatTemplate) return cachedFlatTemplate;
+  cachedFlatTemplate = (async () => {
+    const res = await fetch(TEMPLATE_URL);
+    if (!res.ok) throw new Error(`Falha ao carregar template (${res.status})`);
+    const raw = await res.text();
+
+    const manifestMatch = raw.match(/<script type="__bundler\/manifest">\s*([\s\S]+?)\s*<\/script>/);
+    const templateMatch = raw.match(/<script type="__bundler\/template">\s*([\s\S]+?)\s*<\/script>/);
+    const extMatch = raw.match(/<script type="__bundler\/ext_resources">\s*([\s\S]+?)\s*<\/script>/);
+    if (!manifestMatch || !templateMatch) {
+      throw new Error('Template inválido: scripts do bundler ausentes');
+    }
+
+    const manifest = JSON.parse(manifestMatch[1]) as Record<string, ManifestEntry>;
+    let template = JSON.parse(templateMatch[1]) as string;
+    const extResources = (extMatch ? JSON.parse(extMatch[1]) : []) as ExtResource[];
+
+    const dataUrls: Record<string, string> = {};
+    await Promise.all(
+      Object.entries(manifest).map(async ([uuid, entry]) => {
+        const binStr = atob(entry.data);
+        const bytes = new Uint8Array(binStr.length);
+        for (let i = 0; i < binStr.length; i++) bytes[i] = binStr.charCodeAt(i);
+        const finalBytes = entry.compressed ? await gunzip(bytes) : bytes;
+        dataUrls[uuid] = `data:${entry.mime};base64,${bytesToBase64(finalBytes)}`;
+      })
+    );
+
+    for (const uuid of Object.keys(manifest)) {
+      template = replaceAll(template, uuid, dataUrls[uuid]);
+    }
+
+    template = template.replace(/\s+integrity="[^"]*"/gi, '').replace(/\s+crossorigin="[^"]*"/gi, '');
+
+    const resourceMap: Record<string, string> = {};
+    for (const e of extResources) {
+      if (dataUrls[e.uuid]) resourceMap[e.id] = dataUrls[e.uuid];
+    }
+    const resourceScript =
+      '<script>window.__resources = ' +
+      JSON.stringify(resourceMap).replace(/<\/script>/gi, '<\\/script>') +
+      ';</script>';
+    const headOpen = template.match(/<head[^>]*>/i);
+    if (headOpen && headOpen.index !== undefined) {
+      const i = headOpen.index + headOpen[0].length;
+      template = template.slice(0, i) + resourceScript + template.slice(i);
+    }
+
+    return template;
+  })();
+  return cachedFlatTemplate;
+}
+
+/**
+ * Aplica os valores do formulário ao template já achatado.
+ */
+export function applyFormToTemplate(template: string, form: PropostaForm): string {
+  const map: Record<string, string> = {
+    '{{NUMERO_PROPOSTA}}': NUMERO_PROPOSTA_DEFAULT,
+    '{{NOME_CLIENTE}}': escapeHtml(form.nomeCliente || ''),
+    '{{TELEFONE_CLIENTE}}': escapeHtml(form.telefoneCliente || ''),
+    '{{DATA_MUDANCA}}': escapeHtml(formatDateBR(form.dataMudanca)),
+    '{{DATA_EMISSAO}}': todayBR(),
+    '{{ENDERECO_ORIGEM}}': escapeHtml(form.origem || ''),
+    '{{ENDERECO_DESTINO}}': escapeHtml(form.destino || ''),
+    '{{VALOR_MUDANCA}}': formatBRL(form.valorMudanca),
+    '{{NOME_VENDEDOR}}': escapeHtml(form.nomeVendedor || ''),
+    '{{EMAIL_VENDEDOR}}': escapeHtml(form.emailVendedor || ''),
+  };
+
+  let html = template;
+  for (const [k, v] of Object.entries(map)) html = replaceAll(html, k, v);
+
+  const volumeRaw = (form.volumeEstimado || '').trim();
+  const volumeStr = volumeRaw ? `${escapeHtml(volumeRaw)} m³` : '— m³';
+  html = html.replace(
+    '<div class="f-val">— m³</div>',
+    `<div class="f-val">${volumeStr}</div>`
+  );
+
+  const tipoStr = escapeHtml((form.tipo || '').trim() || 'Residencial');
+  html = html.replace(
+    '<div class="f-lbl">Tipo</div><div class="f-val">Residencial</div>',
+    `<div class="f-lbl">Tipo</div><div class="f-val">${tipoStr}</div>`
+  );
+
+  const seguroStr = escapeHtml((form.valorSeguro || '').trim() || 'A DECLARAR');
+  html = html.replace(
+    '<div class="val" style="">A DECLARAR</div>',
+    `<div class="val" style="">${seguroStr}</div>`
+  );
+
+  return html;
+}
+
+/**
+ * Carrega + aplica o form. Usado pelo preview e pela geração de PDF.
+ */
+export async function buildPropostaHtml(form: PropostaForm): Promise<string> {
+  const template = await loadFlatTemplate();
+  return applyFormToTemplate(template, form);
+}
+
+const sleep = (ms: number) => new Promise(r => setTimeout(r, ms));
+
+async function waitForFonts(doc: Document): Promise<void> {
+  type FontFaceSet = { ready?: Promise<unknown> };
+  const fonts = (doc as unknown as { fonts?: FontFaceSet }).fonts;
+  if (fonts && fonts.ready) {
+    try { await fonts.ready; } catch { /* ignore */ }
+  }
+}
+
+async function waitForImages(doc: Document): Promise<void> {
+  const imgs = Array.from(doc.querySelectorAll('img'));
+  await Promise.all(
+    imgs.map(img => {
+      if (img.complete && img.naturalWidth > 0) return Promise.resolve();
+      return new Promise<void>(resolve => {
+        const done = () => resolve();
+        img.addEventListener('load', done, { once: true });
+        img.addEventListener('error', done, { once: true });
+      });
+    })
+  );
+}
+
+/**
+ * Gera o PDF da proposta a partir do form. Cria um iframe offscreen,
+ * renderiza o HTML achatado, rasteriza cada `.page` e monta um PDF A4 retrato.
+ */
+export async function gerarPropostaPdf(form: PropostaForm, fileName: string): Promise<void> {
+  const html = await buildPropostaHtml(form);
+
+  const iframe = document.createElement('iframe');
+  iframe.style.position = 'fixed';
+  iframe.style.left = '-10000px';
+  iframe.style.top = '0';
+  iframe.style.width = '210mm';
+  iframe.style.height = '297mm';
+  iframe.style.border = '0';
+  iframe.style.background = '#fff';
+  iframe.setAttribute('aria-hidden', 'true');
+  document.body.appendChild(iframe);
+
+  try {
+    await new Promise<void>((resolve, reject) => {
+      iframe.addEventListener('load', () => resolve(), { once: true });
+      iframe.addEventListener('error', () => reject(new Error('Falha ao carregar preview')), { once: true });
+      iframe.srcdoc = html;
+    });
+
+    const doc = iframe.contentDocument;
+    if (!doc) throw new Error('Não foi possível acessar o iframe da proposta');
+
+    await waitForFonts(doc);
+    await waitForImages(doc);
+    await sleep(150);
+
+    const pages = Array.from(doc.querySelectorAll<HTMLElement>('.page'));
+    if (pages.length === 0) throw new Error('Nenhuma página encontrada no template');
+
+    const pdf = new jsPDF({ unit: 'mm', format: 'a4', orientation: 'portrait' });
+    const pageWidth = pdf.internal.pageSize.getWidth();
+    const pageHeight = pdf.internal.pageSize.getHeight();
+
+    for (let i = 0; i < pages.length; i++) {
+      const page = pages[i];
+      const canvas = await html2canvas(page, {
+        scale: 2,
+        useCORS: true,
+        backgroundColor: '#ffffff',
+        logging: false,
+        windowWidth: page.scrollWidth,
+        windowHeight: page.scrollHeight,
+      });
+      const imgData = canvas.toDataURL('image/jpeg', 0.92);
+      if (i > 0) pdf.addPage('a4', 'portrait');
+      pdf.addImage(imgData, 'JPEG', 0, 0, pageWidth, pageHeight, undefined, 'FAST');
+    }
+
+    pdf.save(fileName);
+  } finally {
+    iframe.remove();
+  }
+}
+
+/**
+ * Limpa o cache do template (útil em testes).
+ */
+export function _resetPropostaCache(): void {
+  cachedFlatTemplate = null;
+}
