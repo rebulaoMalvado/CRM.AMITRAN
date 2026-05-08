@@ -1,6 +1,3 @@
-import html2canvas from 'html2canvas';
-import jsPDF from 'jspdf';
-
 const TEMPLATE_URL = '/templates/proposta-amitran.html';
 const NUMERO_PROPOSTA_DEFAULT = '6711.2026';
 
@@ -228,63 +225,83 @@ async function waitForImages(doc: Document): Promise<void> {
   );
 }
 
+// CSS injetado APENAS no momento da impressão. Neutraliza o destaque amarelo
+// dos placeholders (.ph) — útil só no preview pra mostrar o que é editável,
+// mas no PDF deve sair como texto normal.
+const PRINT_OVERRIDE_CSS = `
+  @media print, screen {
+    .ph {
+      display: inline !important;
+      background: transparent !important;
+      color: inherit !important;
+      border: none !important;
+      border-bottom: none !important;
+      padding: 0 !important;
+      border-radius: 0 !important;
+      font-family: inherit !important;
+      font-size: inherit !important;
+      font-weight: inherit !important;
+      letter-spacing: inherit !important;
+    }
+  }
+`;
+
 /**
- * Gera o PDF da proposta a partir do form. Cria um iframe offscreen,
- * renderiza o HTML achatado, rasteriza cada `.page` e monta um PDF A4 retrato.
+ * Abre o diálogo nativo de impressão do navegador com a proposta renderizada.
+ * O Chrome usa o motor Skia/PDF (mesmo que o designer usou) — produz PDF
+ * vetorial com fontes corretas, sem perda de espaços nem placeholders amarelos.
+ *
+ * Trade-off: o usuário precisa escolher "Salvar como PDF" no diálogo. O
+ * `documentTitle` é usado pelo Chrome como sugestão de filename.
  */
-export async function gerarPropostaPdf(form: PropostaForm, fileName: string): Promise<void> {
+export async function imprimirProposta(form: PropostaForm, documentTitle: string): Promise<void> {
   const html = await buildPropostaHtml(form);
+
+  // Injeta o override CSS dentro do <head> antes de renderizar
+  const printableHtml = html.replace(
+    /<head([^>]*)>/i,
+    (_, attrs) => `<head${attrs}><style id="__print_override">${PRINT_OVERRIDE_CSS}</style>`
+  );
 
   const iframe = document.createElement('iframe');
   iframe.style.position = 'fixed';
-  iframe.style.left = '-10000px';
-  iframe.style.top = '0';
-  iframe.style.width = '210mm';
-  iframe.style.height = '297mm';
+  iframe.style.right = '0';
+  iframe.style.bottom = '0';
+  iframe.style.width = '0';
+  iframe.style.height = '0';
   iframe.style.border = '0';
-  iframe.style.background = '#fff';
+  iframe.style.opacity = '0';
   iframe.setAttribute('aria-hidden', 'true');
   document.body.appendChild(iframe);
 
   try {
     await new Promise<void>((resolve, reject) => {
       iframe.addEventListener('load', () => resolve(), { once: true });
-      iframe.addEventListener('error', () => reject(new Error('Falha ao carregar preview')), { once: true });
-      iframe.srcdoc = html;
+      iframe.addEventListener('error', () => reject(new Error('Falha ao carregar proposta')), { once: true });
+      iframe.srcdoc = printableHtml;
     });
 
     const doc = iframe.contentDocument;
-    if (!doc) throw new Error('Não foi possível acessar o iframe da proposta');
+    const win = iframe.contentWindow;
+    if (!doc || !win) throw new Error('Não foi possível acessar o iframe');
+
+    // Title é usado pelo Chrome como sugestão de filename ao "Salvar como PDF"
+    doc.title = documentTitle;
 
     await waitForFonts(doc);
     await waitForImages(doc);
-    await sleep(150);
+    await sleep(200);
 
-    const pages = Array.from(doc.querySelectorAll<HTMLElement>('.page'));
-    if (pages.length === 0) throw new Error('Nenhuma página encontrada no template');
+    win.focus();
+    win.print();
 
-    const pdf = new jsPDF({ unit: 'mm', format: 'a4', orientation: 'portrait' });
-    const pageWidth = pdf.internal.pageSize.getWidth();
-    const pageHeight = pdf.internal.pageSize.getHeight();
-
-    for (let i = 0; i < pages.length; i++) {
-      const page = pages[i];
-      const canvas = await html2canvas(page, {
-        scale: 2,
-        useCORS: true,
-        backgroundColor: '#ffffff',
-        logging: false,
-        windowWidth: page.scrollWidth,
-        windowHeight: page.scrollHeight,
-      });
-      const imgData = canvas.toDataURL('image/jpeg', 0.92);
-      if (i > 0) pdf.addPage('a4', 'portrait');
-      pdf.addImage(imgData, 'JPEG', 0, 0, pageWidth, pageHeight, undefined, 'FAST');
-    }
-
-    pdf.save(fileName);
+    // Em alguns navegadores o print é bloqueante; em outros não. Aguardamos um
+    // tempo razoável antes de remover o iframe pra dar tempo do diálogo abrir.
+    await sleep(500);
   } finally {
-    iframe.remove();
+    // Não removemos imediatamente — alguns navegadores fecham o diálogo se o
+    // iframe sumir. Tira após 2min (ou no próximo print).
+    setTimeout(() => iframe.remove(), 120_000);
   }
 }
 

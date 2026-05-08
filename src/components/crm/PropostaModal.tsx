@@ -1,10 +1,10 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { Deal, Profile } from '@/types/crm';
 import { useCRM } from '@/contexts/CRMContext';
-import { applyFormToTemplate, buildPropostaHtml, formatDateBR, gerarPropostaPdf, type PropostaForm } from '@/lib/proposta';
+import { buildPropostaHtml, formatDateBR, imprimirProposta, type PropostaForm } from '@/lib/proposta';
 import { formatCurrency } from '@/lib/crm-utils';
 import { toast } from 'sonner';
-import { X, FileDown, Loader2 } from 'lucide-react';
+import { X, Printer, Loader2 } from 'lucide-react';
 
 interface PropostaModalProps {
   deal: Deal;
@@ -153,12 +153,12 @@ const PropostaModal = ({ deal, isOpen, onClose }: PropostaModalProps) => {
       }
       const today = new Date();
       const stamp = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, '0')}-${String(today.getDate()).padStart(2, '0')}`;
-      const fileName = `Proposta_Amitran_${sanitizeFileName(form.nomeCliente)}_${stamp}.pdf`;
-      await gerarPropostaPdf(form, fileName);
-      toast.success('PDF gerado');
+      const docTitle = `Proposta_Amitran_${sanitizeFileName(form.nomeCliente)}_${stamp}`;
+      await imprimirProposta(form, docTitle);
+      toast.success('Diálogo de impressão aberto. Escolha "Salvar como PDF".');
     } catch (err) {
       const message = err instanceof Error ? err.message : 'desconhecido';
-      toast.error('Erro ao gerar PDF: ' + message);
+      toast.error('Erro ao abrir impressão: ' + message);
     } finally {
       setGenerating(false);
     }
@@ -296,8 +296,8 @@ const PropostaModal = ({ deal, isOpen, onClose }: PropostaModalProps) => {
             disabled={generating || loadingTemplate}
             className="flex items-center gap-1.5 px-4 py-2 text-sm bg-primary text-primary-foreground rounded-lg hover:opacity-90 transition-opacity disabled:opacity-50 disabled:cursor-not-allowed"
           >
-            {generating ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <FileDown className="w-3.5 h-3.5" />}
-            {generating ? 'Gerando PDF...' : 'Gerar PDF'}
+            {generating ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Printer className="w-3.5 h-3.5" />}
+            {generating ? 'Abrindo...' : 'Gerar PDF'}
           </button>
         </div>
       </div>
