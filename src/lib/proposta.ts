@@ -11,9 +11,17 @@ export interface PropostaForm {
   destino: string;
   valorMudanca: number;
   valorSeguro: string;
+  total: string;
   nomeVendedor: string;
   emailVendedor: string;
 }
+
+/** String padrão para o campo "Total" baseada no valor da mudança. */
+export const defaultTotal = (valorMudanca: number): string =>
+  `R$ ${(Number.isFinite(valorMudanca) ? valorMudanca : 0).toLocaleString('pt-BR', {
+    minimumFractionDigits: 2,
+    maximumFractionDigits: 2,
+  })} + 2% do valor do seguro`;
 
 interface ManifestEntry {
   mime: string;
@@ -155,6 +163,17 @@ async function loadFlatTemplate(): Promise<string> {
  * Aplica os valores do formulário ao template já achatado.
  */
 export function applyFormToTemplate(template: string, form: PropostaForm): string {
+  let html = template;
+
+  // Total: substitui a linha inteira ANTES dos placeholders. O conteúdo do
+  // span fica livre — usuário pode editar pra qualquer string. Se vazio, usa
+  // o padrão calculado a partir do valor da mudança.
+  const totalStr = (form.total || '').trim() || defaultTotal(form.valorMudanca);
+  html = html.replace(
+    '<div class="val">R$ <span class="ph">{{VALOR_MUDANCA}} + 2% do valor do seguro</span></div>',
+    `<div class="val"><span class="ph">${escapeHtml(totalStr)}</span></div>`
+  );
+
   const map: Record<string, string> = {
     '{{NUMERO_PROPOSTA}}': NUMERO_PROPOSTA_DEFAULT,
     '{{NOME_CLIENTE}}': escapeHtml(form.nomeCliente || ''),
@@ -168,7 +187,6 @@ export function applyFormToTemplate(template: string, form: PropostaForm): strin
     '{{EMAIL_VENDEDOR}}': escapeHtml(form.emailVendedor || ''),
   };
 
-  let html = template;
   for (const [k, v] of Object.entries(map)) html = replaceAll(html, k, v);
 
   const volumeRaw = (form.volumeEstimado || '').trim();

@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { Deal, Profile } from '@/types/crm';
 import { useCRM } from '@/contexts/CRMContext';
-import { buildPropostaHtml, formatDateBR, imprimirProposta, type PropostaForm } from '@/lib/proposta';
+import { buildPropostaHtml, defaultTotal, formatDateBR, imprimirProposta, type PropostaForm } from '@/lib/proposta';
 import { formatCurrency } from '@/lib/crm-utils';
 import { toast } from 'sonner';
 import { X, Printer, Loader2 } from 'lucide-react';
@@ -17,19 +17,23 @@ const DEFAULTS = {
   valorSeguro: 'A DECLARAR',
 };
 
-const buildInitialForm = (deal: Deal, vendedor?: Profile): PropostaForm => ({
-  nomeCliente: deal.nome || '',
-  telefoneCliente: deal.telefone || '',
-  volumeEstimado: '',
-  dataMudanca: deal.dataMudanca || '',
-  tipo: DEFAULTS.tipo,
-  origem: deal.origem || '',
-  destino: deal.destino || '',
-  valorMudanca: Number(deal.valor) || 0,
-  valorSeguro: DEFAULTS.valorSeguro,
-  nomeVendedor: vendedor?.name || deal.sellerName || '',
-  emailVendedor: vendedor?.email || '',
-});
+const buildInitialForm = (deal: Deal, vendedor?: Profile): PropostaForm => {
+  const valorMudanca = Number(deal.valor) || 0;
+  return {
+    nomeCliente: deal.nome || '',
+    telefoneCliente: deal.telefone || '',
+    volumeEstimado: '',
+    dataMudanca: deal.dataMudanca || '',
+    tipo: DEFAULTS.tipo,
+    origem: deal.origem || '',
+    destino: deal.destino || '',
+    valorMudanca,
+    valorSeguro: DEFAULTS.valorSeguro,
+    total: defaultTotal(valorMudanca),
+    nomeVendedor: vendedor?.name || deal.sellerName || '',
+    emailVendedor: vendedor?.email || '',
+  };
+};
 
 const sanitizeFileName = (s: string): string =>
   s.replace(/[^\p{L}\p{N}_\- ]+/gu, '').trim().replace(/\s+/g, '_') || 'cliente';
@@ -126,8 +130,6 @@ const PropostaModal = ({ deal, isOpen, onClose }: PropostaModalProps) => {
 
   if (!isOpen) return null;
 
-  const totalText = `R$ ${formatCurrencyPlain(form.valorMudanca)} + 2% do valor do seguro`;
-
   const handleGerarClick = () => {
     if (changedFields.length > 0) {
       setShowConfirm(true);
@@ -165,7 +167,15 @@ const PropostaModal = ({ deal, isOpen, onClose }: PropostaModalProps) => {
   };
 
   const setField = <K extends keyof PropostaForm>(key: K, value: PropostaForm[K]) => {
-    setForm(prev => ({ ...prev, [key]: value }));
+    setForm(prev => {
+      const next = { ...prev, [key]: value };
+      // Mudou valor da mudança: se o total ainda estava no formato padrão
+      // (não foi customizado pelo usuário), recomputa. Senão, mantém o custom.
+      if (key === 'valorMudanca' && prev.total === defaultTotal(prev.valorMudanca)) {
+        next.total = defaultTotal(value as number);
+      }
+      return next;
+    });
   };
 
   return (
@@ -260,7 +270,14 @@ const PropostaModal = ({ deal, isOpen, onClose }: PropostaModalProps) => {
               />
             </Field>
             <Field label="Total">
-              <input value={totalText} readOnly className={inputCls + ' bg-muted/40 cursor-not-allowed'} />
+              <input
+                value={form.total}
+                onChange={e => setField('total', e.target.value)}
+                className={inputCls}
+              />
+              <span className="text-[11px] text-muted-foreground mt-1 block">
+                Atualiza automaticamente quando você muda o valor da mudança. Edite à vontade.
+              </span>
             </Field>
           </div>
 
@@ -324,8 +341,6 @@ const Field = ({ label, children }: { label: string; children: React.ReactNode }
   </div>
 );
 
-const formatCurrencyPlain = (n: number): string =>
-  (Number.isFinite(n) ? n : 0).toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 
 interface ConfirmProps {
   changes: { label: string; from: string; to: string }[];
