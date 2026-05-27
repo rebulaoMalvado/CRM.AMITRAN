@@ -13,6 +13,7 @@ import { formatCurrency } from '@/lib/crm-utils';
 import DealModal from '@/components/crm/DealModal';
 import InstallmentsTable from '@/components/crm/InstallmentsTable';
 import FinanceiroCalendar from '@/components/crm/FinanceiroCalendar';
+import CashflowForecastCards from '@/components/crm/CashflowForecastCards';
 import {
   ArrowLeft, LogOut, Loader2, ChevronLeft, ChevronRight,
   Wallet, TrendingUp, Clock, CalendarDays, List, CheckCircle2, X,
@@ -198,6 +199,9 @@ const FinanceiroInner = () => {
             Mês seguinte <ChevronRight className="w-3.5 h-3.5" />
           </button>
         </div>
+
+        {/* Previsão de caixa — independente do mês selecionado */}
+        <CashflowForecastCards />
 
         {/* KPIs */}
         <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">

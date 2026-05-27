@@ -233,6 +233,41 @@ export async function fetchOpenInstallmentsUntil(
 }
 
 /**
+ * Previsão de caixa: soma das parcelas em aberto até `untilISO`, separando o
+ * subset de atrasadas (`due_date < todayISO`). Permite filtrar por vendedor
+ * via embedding (deals.seller_id) — quando `sellerId` é informado, devolve
+ * só as parcelas dos deals daquele vendedor.
+ *
+ * Importante: atrasadas SÃO somadas no total (refletem realidade de caixa),
+ * o `overdueCount` é só pra exibição.
+ */
+export async function fetchCashflowForecast(args: {
+  untilISO: string;
+  todayISO: string;
+  sellerId?: string;
+}): Promise<{ total: number; count: number; overdueCount: number }> {
+  const { untilISO, todayISO, sellerId } = args;
+  let query = supabase
+    .from('deal_installments')
+    .select('amount, due_date, deal:deals!inner(seller_id)')
+    .eq('is_received', false)
+    .lte('due_date', untilISO);
+  if (sellerId) {
+    query = query.eq('deal.seller_id', sellerId);
+  }
+  const { data, error } = await query;
+  if (error) throw error;
+  const rows = (data || []) as { amount: number | string; due_date: string }[];
+  let total = 0;
+  let overdueCount = 0;
+  for (const r of rows) {
+    total += Number(r.amount) || 0;
+    if (r.due_date < todayISO) overdueCount++;
+  }
+  return { total, count: rows.length, overdueCount };
+}
+
+/**
  * Soma e contagem das parcelas recebidas com received_date dentro do range
  * (inclusivo). Usa received_amount (valor real) como base do total.
  */
