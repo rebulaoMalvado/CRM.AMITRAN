@@ -6,9 +6,11 @@ export interface PropostaForm {
   telefoneCliente: string;
   volumeEstimado: string;
   dataMudanca: string;
+  prazoExecucao: string;
   tipo: string;
   origem: string;
   destino: string;
+  observacoes: string;
   valorMudanca: number;
   valorSeguro: string;
   total: string;
@@ -179,9 +181,11 @@ export function applyFormToTemplate(template: string, form: PropostaForm): strin
     '{{NOME_CLIENTE}}': escapeHtml(form.nomeCliente || ''),
     '{{TELEFONE_CLIENTE}}': escapeHtml(form.telefoneCliente || ''),
     '{{DATA_MUDANCA}}': escapeHtml(formatDateBR(form.dataMudanca)),
+    '{{PRAZO_EXECUCAO}}': escapeHtml((form.prazoExecucao || '').trim() || '—'),
     '{{DATA_EMISSAO}}': todayBR(),
     '{{ENDERECO_ORIGEM}}': escapeHtml(form.origem || ''),
     '{{ENDERECO_DESTINO}}': escapeHtml(form.destino || ''),
+    '{{OBSERVACOES}}': escapeHtml((form.observacoes || '').trim() || '—'),
     '{{VALOR_MUDANCA}}': formatBRL(form.valorMudanca),
     '{{NOME_VENDEDOR}}': escapeHtml(form.nomeVendedor || ''),
     '{{EMAIL_VENDEDOR}}': escapeHtml(form.emailVendedor || ''),
