@@ -24,9 +24,11 @@ const buildInitialForm = (deal: Deal, vendedor?: Profile): PropostaForm => {
     telefoneCliente: deal.telefone || '',
     volumeEstimado: '',
     dataMudanca: deal.dataMudanca || '',
+    prazoExecucao: '',
     tipo: DEFAULTS.tipo,
     origem: deal.origem || '',
     destino: deal.destino || '',
+    observacoes: '',
     valorMudanca,
     valorSeguro: DEFAULTS.valorSeguro,
     total: defaultTotal(valorMudanca),
@@ -230,6 +232,14 @@ const PropostaModal = ({ deal, isOpen, onClose }: PropostaModalProps) => {
                 className={inputCls}
               />
             </Field>
+            <Field label="Prazo de execução">
+              <input
+                value={form.prazoExecucao}
+                onChange={e => setField('prazoExecucao', e.target.value)}
+                placeholder="ex: 1 dia"
+                className={inputCls}
+              />
+            </Field>
             <Field label="Tipo">
               <input
                 value={form.tipo}
@@ -249,6 +259,15 @@ const PropostaModal = ({ deal, isOpen, onClose }: PropostaModalProps) => {
                 value={form.destino}
                 onChange={e => setField('destino', e.target.value)}
                 className={inputCls}
+              />
+            </Field>
+            <Field label="Observações">
+              <textarea
+                value={form.observacoes}
+                onChange={e => setField('observacoes', e.target.value)}
+                rows={3}
+                placeholder="Observações que aparecem na proposta"
+                className={inputCls + ' resize-y'}
               />
             </Field>
             <Field label="Valor da mudança (R$)">
