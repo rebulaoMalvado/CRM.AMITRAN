@@ -4,6 +4,8 @@ export type ServiceType = 'economico' | 'completo';
 
 export type LossReason = 'preco' | 'concorrencia' | 'desistiu' | 'sem_resposta' | 'outro';
 
+export type LeadSource = 'google' | 'redes_sociais' | 'indicacao' | 'empresa' | 'ja_era_cliente';
+
 export type UserRole = 'vendedor' | 'head';
 
 export interface Profile {
@@ -28,6 +30,8 @@ export interface Deal {
   stage: Stage;
   parceiro: string;
   motivoPerda?: LossReason;
+  /** De onde o lead veio — preenchido quando o deal é fechado. */
+  fonteLead?: LeadSource;
   closedAt?: string;
   createdAt: string;
   updatedAt: string;
@@ -56,6 +60,14 @@ export const LOSS_REASONS: Record<LossReason, string> = {
   desistiu: 'Desistiu da mudança',
   sem_resposta: 'Sem resposta',
   outro: 'Outro',
+};
+
+export const LEAD_SOURCES: Record<LeadSource, string> = {
+  google: 'Google',
+  redes_sociais: 'Redes sociais',
+  indicacao: 'Indicação',
+  empresa: 'Empresa',
+  ja_era_cliente: 'Já era cliente',
 };
 
 export const SERVICE_TYPES: Record<ServiceType, string> = {

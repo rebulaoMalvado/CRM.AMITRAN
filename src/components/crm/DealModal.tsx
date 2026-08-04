@@ -1,5 +1,5 @@
 import { useState, useEffect, useMemo } from 'react';
-import { Deal, Stage, ServiceType, LossReason, DealInstallmentDraft, STAGES, LOSS_REASONS, SERVICE_TYPES } from '@/types/crm';
+import { Deal, Stage, ServiceType, LossReason, LeadSource, DealInstallmentDraft, STAGES, LOSS_REASONS, LEAD_SOURCES, SERVICE_TYPES } from '@/types/crm';
 import { getStageConfig, formatCurrency } from '@/lib/crm-utils';
 import { fetchInstallmentsByDeal, saveInstallments, markInstallmentReceived, unmarkInstallmentReceived } from '@/lib/installments';
 import { useAuth } from '@/contexts/AuthContext';
@@ -22,6 +22,7 @@ const emptyForm = {
   nome: '', telefone: '', origem: '', destino: '', dataMudanca: '',
   tipoServico: 'completo' as ServiceType, valor: 0, stage: 'lead_novo' as Stage,
   parceiro: '', motivoPerda: undefined as LossReason | undefined,
+  fonteLead: undefined as LeadSource | undefined,
 };
 
 const todayISO = () => {
@@ -52,7 +53,7 @@ const DealModal = ({ deal, isOpen, onClose, onSave, onUpdate, onDelete }: DealMo
 
   useEffect(() => {
     if (deal) {
-      setForm({ nome: deal.nome, telefone: deal.telefone, origem: deal.origem, destino: deal.destino, dataMudanca: deal.dataMudanca, tipoServico: deal.tipoServico, valor: deal.valor, stage: deal.stage, parceiro: deal.parceiro, motivoPerda: deal.motivoPerda });
+      setForm({ nome: deal.nome, telefone: deal.telefone, origem: deal.origem, destino: deal.destino, dataMudanca: deal.dataMudanca, tipoServico: deal.tipoServico, valor: deal.valor, stage: deal.stage, parceiro: deal.parceiro, motivoPerda: deal.motivoPerda, fonteLead: deal.fonteLead });
     } else {
       setForm(emptyForm);
     }
@@ -302,6 +303,16 @@ const DealModal = ({ deal, isOpen, onClose, onSave, onUpdate, onDelete }: DealMo
               <select value={form.motivoPerda || ''} onChange={e => setForm(p => ({ ...p, motivoPerda: e.target.value as LossReason }))} className="w-full px-3 py-2 text-sm bg-muted border border-border rounded-lg text-card-foreground focus:outline-none focus:ring-2 focus:ring-primary/50">
                 <option value="">Selecionar...</option>
                 {Object.entries(LOSS_REASONS).map(([k, v]) => <option key={k} value={k}>{v}</option>)}
+              </select>
+            </div>
+          )}
+
+          {form.stage === 'fechado' && (
+            <div>
+              <label className="text-xs font-medium text-muted-foreground mb-1">De onde veio o lead</label>
+              <select value={form.fonteLead || ''} onChange={e => setForm(p => ({ ...p, fonteLead: (e.target.value || undefined) as LeadSource | undefined }))} className="w-full px-3 py-2 text-sm bg-muted border border-border rounded-lg text-card-foreground focus:outline-none focus:ring-2 focus:ring-primary/50">
+                <option value="">Selecionar...</option>
+                {Object.entries(LEAD_SOURCES).map(([k, v]) => <option key={k} value={k}>{v}</option>)}
               </select>
             </div>
           )}

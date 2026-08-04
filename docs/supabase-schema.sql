@@ -63,6 +63,7 @@ create table if not exists public.deals (
   stage text not null check (stage in ('lead_novo','qualificacao','orcamento_enviado','negociacao','fechado','perdido')),
   parceiro text default '',
   motivo_perda text check (motivo_perda in ('preco','concorrencia','desistiu','sem_resposta','outro')),
+  fonte_lead text check (fonte_lead in ('google','redes_sociais','indicacao','empresa','ja_era_cliente')),
   closed_at timestamptz,
   created_at timestamptz default now(),
   updated_at timestamptz default now()
