@@ -40,6 +40,7 @@ type DealRow = {
   stage: Deal['stage'];
   parceiro: string | null;
   motivo_perda: Deal['motivoPerda'] | null;
+  fonte_lead: Deal['fonteLead'] | null;
   closed_at: string | null;
   created_at: string;
   updated_at: string;
@@ -60,6 +61,7 @@ function rowToDeal(row: DealRow, profileMap: Map<string, Profile>): Deal {
     stage: row.stage,
     parceiro: row.parceiro || '',
     motivoPerda: row.motivo_perda || undefined,
+    fonteLead: row.fonte_lead || undefined,
     closedAt: row.closed_at || undefined,
     createdAt: row.created_at,
     updatedAt: row.updated_at,
@@ -79,6 +81,7 @@ function dealToRow(deal: Partial<Deal>): Partial<DealRow> {
   if (deal.stage !== undefined) row.stage = deal.stage;
   if (deal.parceiro !== undefined) row.parceiro = deal.parceiro;
   if (deal.motivoPerda !== undefined) row.motivo_perda = deal.motivoPerda || null;
+  if (deal.fonteLead !== undefined) row.fonte_lead = deal.fonteLead || null;
   return row;
 }
 
