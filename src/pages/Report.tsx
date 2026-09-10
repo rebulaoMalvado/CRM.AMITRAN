@@ -66,7 +66,7 @@ const Report = () => {
     const inClosed = (d: RawDeal) => !!d.closed_at && d.closed_at >= start && d.closed_at < end;
 
     return profiles
-      .filter(p => p.role === 'vendedor')
+      .filter(p => p.role === 'vendedor' || p.role === 'head')
       .map(p => {
         const mine = deals.filter(d => d.seller_id === p.id);
 
@@ -95,7 +95,12 @@ const Report = () => {
           conversao: decisoes > 0 ? (fechadosLista.length / decisoes) * 100 : 0,
           motivosPerda,
         };
-      });
+      })
+      // Vendedores sempre aparecem; heads só quando têm atividade no mês.
+      .filter(r =>
+        r.profile.role === 'vendedor' ||
+        r.novos > 0 || r.fechados > 0 || r.perdidos > 0 || r.emAbertoDoMes > 0
+      );
   }, [profiles, deals, year, month]);
 
   const totals = useMemo(() => {
@@ -174,7 +179,7 @@ const Report = () => {
                   Por vendedor · {monthLabels[month]} {year}
                 </h2>
                 <p className="text-[11px] text-muted-foreground mt-1">
-                  "Fechados"/"Perdidos" contam pela data de fechamento · "Novos" e "Em aberto" pela data de criação
+                  Inclui vendedores e heads que venderam no mês · "Fechados"/"Perdidos" contam pela data de fechamento · "Novos" e "Em aberto" pela data de criação
                 </p>
               </div>
               <div className="overflow-x-auto">
@@ -195,7 +200,14 @@ const Report = () => {
                   <tbody>
                     {rows.map(r => (
                       <tr key={r.profile.id} className="border-t border-border hover:bg-muted/30">
-                        <td className="px-4 py-2.5 font-medium text-card-foreground">{r.profile.name}</td>
+                        <td className="px-4 py-2.5 font-medium text-card-foreground">
+                          <span className="inline-flex items-center gap-1.5">
+                            {r.profile.name}
+                            {r.profile.role === 'head' && (
+                              <span className="text-[9px] font-semibold uppercase tracking-wider px-1.5 py-0.5 rounded bg-primary/10 text-primary">Head</span>
+                            )}
+                          </span>
+                        </td>
                         <td className="px-4 py-2.5 text-right text-card-foreground">{r.novos}</td>
                         <td className="px-4 py-2.5 text-right text-success">{r.fechados}</td>
                         <td className="px-4 py-2.5 text-right text-destructive">{r.perdidos}</td>
