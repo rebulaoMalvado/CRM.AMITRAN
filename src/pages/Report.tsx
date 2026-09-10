@@ -17,12 +17,14 @@ interface MonthlyRow {
   ticketMedio: number;
   conversao: number;
   motivosPerda: Record<string, number>;
+  fechadosClientes: { nome: string; valor: number }[];
 }
 
 const monthLabels = ['Janeiro','Fevereiro','Março','Abril','Maio','Junho','Julho','Agosto','Setembro','Outubro','Novembro','Dezembro'];
 
 type RawDeal = {
   seller_id: string;
+  nome: string;
   stage: Deal['stage'];
   valor: number | null;
   created_at: string;
@@ -44,7 +46,7 @@ const Report = () => {
       setLoading(true);
       const [profilesRes, dealsRes] = await Promise.all([
         supabase.from('profiles').select('*'),
-        supabase.from('deals').select('seller_id, stage, valor, created_at, closed_at, motivo_perda'),
+        supabase.from('deals').select('seller_id, nome, stage, valor, created_at, closed_at, motivo_perda'),
       ]);
       if (profilesRes.error || dealsRes.error) {
         toast.error('Erro ao carregar relatório');
@@ -94,6 +96,9 @@ const Report = () => {
           ticketMedio: fechadosLista.length > 0 ? receita / fechadosLista.length : 0,
           conversao: decisoes > 0 ? (fechadosLista.length / decisoes) * 100 : 0,
           motivosPerda,
+          fechadosClientes: fechadosLista
+            .map(d => ({ nome: d.nome, valor: Number(d.valor) || 0 }))
+            .sort((a, b) => b.valor - a.valor),
         };
       })
       // Vendedores sempre aparecem; heads só quando têm atividade no mês.
@@ -233,6 +238,47 @@ const Report = () => {
                     )}
                   </tbody>
                 </table>
+              </div>
+            </section>
+
+            <section className="bg-card border border-border rounded-xl overflow-hidden">
+              <div className="px-5 py-3 border-b border-border">
+                <h2 className="text-sm font-semibold text-card-foreground">
+                  Clientes fechados · {monthLabels[month]} {year}
+                </h2>
+                <p className="text-[11px] text-muted-foreground mt-1">
+                  Quem foi fechado no mês, agrupado por vendedor (pela data de fechamento)
+                </p>
+              </div>
+              <div className="divide-y divide-border">
+                {rows.filter(r => r.fechadosClientes.length > 0).map(r => (
+                  <div key={r.profile.id} className="px-5 py-4">
+                    <div className="flex items-center justify-between mb-2 flex-wrap gap-2">
+                      <span className="inline-flex items-center gap-1.5 text-sm font-semibold text-card-foreground">
+                        {r.profile.name}
+                        {r.profile.role === 'head' && (
+                          <span className="text-[9px] font-semibold uppercase tracking-wider px-1.5 py-0.5 rounded bg-primary/10 text-primary">Head</span>
+                        )}
+                      </span>
+                      <span className="text-xs text-muted-foreground">
+                        {r.fechadosClientes.length} {r.fechadosClientes.length === 1 ? 'cliente' : 'clientes'} · <span className="font-semibold text-success">{formatCurrency(r.receita)}</span>
+                      </span>
+                    </div>
+                    <ul className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-x-6 gap-y-1">
+                      {r.fechadosClientes.map((c, i) => (
+                        <li key={i} className="flex items-center justify-between gap-2 text-sm py-1 border-b border-border/40">
+                          <span className="text-card-foreground truncate">{c.nome}</span>
+                          <span className="text-muted-foreground whitespace-nowrap">{formatCurrency(c.valor)}</span>
+                        </li>
+                      ))}
+                    </ul>
+                  </div>
+                ))}
+                {rows.every(r => r.fechadosClientes.length === 0) && (
+                  <div className="px-5 py-10 text-center text-muted-foreground text-sm">
+                    Nenhum cliente fechado neste mês.
+                  </div>
+                )}
               </div>
             </section>
           </>
