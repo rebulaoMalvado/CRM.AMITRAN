@@ -80,6 +80,7 @@ const FinanceiroInner = () => {
         .from('deals')
         .select('id, valor')
         .eq('stage', 'fechado')
+        .is('deleted_at', null)
         .gte('closed_at', closedFromTs)
         .lt('closed_at', closedToTs);
 

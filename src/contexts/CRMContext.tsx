@@ -17,6 +17,9 @@ interface CRMContextType {
   addDeal: (deal: Omit<Deal, 'id' | 'createdAt' | 'updatedAt' | 'sellerId' | 'sellerName'>) => Promise<void>;
   updateDeal: (id: string, updates: Partial<Deal>) => Promise<void>;
   deleteDeal: (id: string) => Promise<void>;
+  fetchDeletedDeals: () => Promise<Deal[]>;
+  restoreDeal: (id: string) => Promise<void>;
+  purgeDeal: (id: string) => Promise<void>;
   moveDeal: (id: string, newStage: Stage) => Promise<void>;
   importDeals: (newDeals: Omit<Deal, 'id' | 'sellerId' | 'sellerName' | 'updatedAt'>[]) => Promise<void>;
   filteredDeals: Deal[];
@@ -42,6 +45,7 @@ type DealRow = {
   motivo_perda: Deal['motivoPerda'] | null;
   fonte_lead: Deal['fonteLead'] | null;
   closed_at: string | null;
+  deleted_at: string | null;
   created_at: string;
   updated_at: string;
 };
@@ -63,6 +67,7 @@ function rowToDeal(row: DealRow, profileMap: Map<string, Profile>): Deal {
     motivoPerda: row.motivo_perda || undefined,
     fonteLead: row.fonte_lead || undefined,
     closedAt: row.closed_at || undefined,
+    deletedAt: row.deleted_at || undefined,
     createdAt: row.created_at,
     updatedAt: row.updated_at,
   };
@@ -110,7 +115,7 @@ export function CRMProvider({ children }: { children: React.ReactNode }) {
     setLoading(true);
     try {
       const [dealsRes, profilesRes] = await Promise.all([
-        supabase.from('deals').select('*').order('created_at', { ascending: false }),
+        supabase.from('deals').select('*').is('deleted_at', null).order('created_at', { ascending: false }),
         supabase.from('profiles').select('*'),
       ]);
       if (dealsRes.error) throw dealsRes.error;
@@ -162,14 +167,58 @@ export function CRMProvider({ children }: { children: React.ReactNode }) {
     [profileMap]
   );
 
+  // Soft-delete: manda pra lixeira (deleted_at = now) em vez de apagar de vez.
   const deleteDeal = useCallback(async (id: string) => {
-    const { error } = await supabase.from('deals').delete().eq('id', id);
+    const { error } = await supabase
+      .from('deals')
+      .update({ deleted_at: new Date().toISOString() })
+      .eq('id', id);
     if (error) {
       toast.error('Erro ao excluir: ' + error.message);
       return;
     }
     setDeals(prev => prev.filter(d => d.id !== id));
-    toast.success('Deal excluído');
+    toast.success('Deal movido para a lixeira');
+  }, []);
+
+  // Lista os deals na lixeira (deleted_at preenchido).
+  const fetchDeletedDeals = useCallback(async (): Promise<Deal[]> => {
+    const { data, error } = await supabase
+      .from('deals')
+      .select('*')
+      .not('deleted_at', 'is', null)
+      .order('deleted_at', { ascending: false });
+    if (error) {
+      toast.error('Erro ao carregar lixeira: ' + error.message);
+      return [];
+    }
+    return (data || []).map(r => rowToDeal(r as DealRow, profileMap));
+  }, [profileMap]);
+
+  // Restaura um deal da lixeira (deleted_at = null) e recoloca na lista ativa.
+  const restoreDeal = useCallback(async (id: string) => {
+    const { data, error } = await supabase
+      .from('deals')
+      .update({ deleted_at: null })
+      .eq('id', id)
+      .select()
+      .single();
+    if (error) {
+      toast.error('Erro ao restaurar: ' + error.message);
+      return;
+    }
+    setDeals(prev => [rowToDeal(data as DealRow, profileMap), ...prev]);
+    toast.success('Deal restaurado');
+  }, [profileMap]);
+
+  // Exclui de vez (sem volta) — usado na lixeira.
+  const purgeDeal = useCallback(async (id: string) => {
+    const { error } = await supabase.from('deals').delete().eq('id', id);
+    if (error) {
+      toast.error('Erro ao excluir definitivamente: ' + error.message);
+      return;
+    }
+    toast.success('Deal excluído definitivamente');
   }, []);
 
   const moveDeal = useCallback(
@@ -252,6 +301,9 @@ export function CRMProvider({ children }: { children: React.ReactNode }) {
         addDeal,
         updateDeal,
         deleteDeal,
+        fetchDeletedDeals,
+        restoreDeal,
+        purgeDeal,
         moveDeal,
         importDeals,
         filteredDeals,

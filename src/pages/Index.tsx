@@ -7,6 +7,7 @@ import Charts from '@/components/crm/Charts';
 import Pipeline from '@/components/crm/Pipeline';
 import FilterBar from '@/components/crm/FilterBar';
 import CSVActions from '@/components/crm/CSVActions';
+import { TrashButton } from '@/components/crm/TrashModal';
 import { BarChart3, ChevronDown, ChevronUp, LogOut, Users, FileBarChart, Briefcase, Wallet, DollarSign } from 'lucide-react';
 
 const CRMDashboard = () => {
@@ -76,6 +77,7 @@ const CRMDashboard = () => {
               </Link>
             )}
             <CSVActions />
+            <TrashButton />
             <button
               onClick={signOut}
               className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium rounded-md bg-muted text-muted-foreground hover:text-card-foreground hover:bg-accent transition-colors"
