@@ -46,7 +46,7 @@ const Report = () => {
       setLoading(true);
       const [profilesRes, dealsRes] = await Promise.all([
         supabase.from('profiles').select('*'),
-        supabase.from('deals').select('seller_id, nome, stage, valor, created_at, closed_at, motivo_perda'),
+        supabase.from('deals').select('seller_id, nome, stage, valor, created_at, closed_at, motivo_perda').is('deleted_at', null),
       ]);
       if (profilesRes.error || dealsRes.error) {
         toast.error('Erro ao carregar relatório');

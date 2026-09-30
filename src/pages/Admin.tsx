@@ -34,7 +34,7 @@ const Admin = () => {
     setLoading(true);
     const [profilesRes, dealsRes] = await Promise.all([
       supabase.from('profiles').select('*').order('created_at'),
-      supabase.from('deals').select('seller_id, stage, valor'),
+      supabase.from('deals').select('seller_id, stage, valor').is('deleted_at', null),
     ]);
 
     if (profilesRes.error || dealsRes.error) {

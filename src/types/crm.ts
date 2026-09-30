@@ -33,6 +33,8 @@ export interface Deal {
   /** De onde o lead veio — preenchido quando o deal é fechado. */
   fonteLead?: LeadSource;
   closedAt?: string;
+  /** Quando foi mandado pra lixeira (soft-delete). Ausente = ativo. */
+  deletedAt?: string;
   createdAt: string;
   updatedAt: string;
 }

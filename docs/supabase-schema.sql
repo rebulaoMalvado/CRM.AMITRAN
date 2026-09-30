@@ -65,6 +65,7 @@ create table if not exists public.deals (
   motivo_perda text check (motivo_perda in ('preco','concorrencia','desistiu','sem_resposta','outro')),
   fonte_lead text check (fonte_lead in ('google','redes_sociais','indicacao','empresa','ja_era_cliente')),
   closed_at timestamptz,
+  deleted_at timestamptz,
   created_at timestamptz default now(),
   updated_at timestamptz default now()
 );
