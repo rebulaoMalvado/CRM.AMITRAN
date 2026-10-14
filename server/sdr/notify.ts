@@ -60,7 +60,7 @@ export function parseSellerPhones(raw: string | undefined): Record<string, strin
 /** Texto livre (só dentro da janela de 24h do vendedor). */
 export function buildText(lead: LeadNotice, crmUrl: string): string {
   return [
-    "🔔 Novo lead qualificado para você!",
+    "Segue novo lead qualificado prontinho pro fechamento:",
     "",
     `Cliente: ${oneLine(lead.nome)}`,
     `Origem: ${oneLine(lead.origem)}`,
@@ -68,6 +68,8 @@ export function buildText(lead: LeadNotice, crmUrl: string): string {
     `Data: ${oneLine(lead.dataLabel)}`,
     "",
     `Abrir a conversa: ${crmUrl}/conversas?conversa=${lead.conversationId}`,
+    "",
+    "Sem pressão? É OBRIGATÓRIO fechar! CHAMA! 🔥",
   ].join("\n");
 }
 

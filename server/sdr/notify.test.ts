@@ -108,7 +108,8 @@ describe("helpers do aviso", () => {
   it("buildText não traz preço nem dados além dos necessários", () => {
     const text = buildText(lead, "https://x.app");
     expect(text).not.toMatch(/R\$/);
-    expect(text.split("\n").length).toBeLessThan(10);
+    expect(text.split("\n").length).toBeLessThan(14);
+    expect(text).toContain("prontinho pro fechamento");
   });
 });
 
