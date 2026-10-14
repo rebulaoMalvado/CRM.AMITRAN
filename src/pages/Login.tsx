@@ -34,10 +34,10 @@ const Login = () => {
       <div className="w-full max-w-sm">
         <div className="flex items-center justify-center mb-6 gap-3">
           <div className="w-10 h-10 bg-primary rounded-lg flex items-center justify-center">
-            <span className="text-primary-foreground font-bold">N</span>
+            <span className="text-primary-foreground font-bold">A</span>
           </div>
           <div>
-            <h1 className="text-lg font-bold text-card-foreground tracking-tight">NOG CRM</h1>
+            <h1 className="text-lg font-bold text-card-foreground tracking-tight">Amitran CRM</h1>
             <p className="text-xs text-muted-foreground">Gestão de Pipeline</p>
           </div>
         </div>

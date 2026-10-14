@@ -1,5 +1,5 @@
 -- =========================================================
--- NOG CRM — Schema inicial do Supabase
+-- Amitran CRM — Schema inicial do Supabase
 -- =========================================================
 -- Como rodar:
 -- 1. No painel do Supabase → SQL Editor → New query

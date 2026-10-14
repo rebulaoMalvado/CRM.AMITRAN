@@ -147,14 +147,14 @@ const KPICards = () => {
         </div>
       </div>
 
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-4">
+      <div className="grid grid-cols-2 lg:grid-cols-5 gap-2 sm:gap-4">
         {cards.map((card, i) => (
           <div key={card.label} className="kpi-card animate-fade-in" style={{ animationDelay: `${i * 80}ms`, animationFillMode: 'both' }}>
             <div className="flex items-center justify-between mb-3">
-              <span className="text-xs font-medium text-muted-foreground uppercase tracking-wider">{card.label}</span>
+              <span className="text-[10px] sm:text-xs font-medium text-muted-foreground uppercase tracking-wider">{card.label}</span>
               <card.icon className={`w-4 h-4 ${card.accent}`} />
             </div>
-            <div className="text-2xl font-bold text-card-foreground">{card.value}</div>
+            <div className="text-lg sm:text-2xl font-bold text-card-foreground break-words">{card.value}</div>
             <p className="text-xs text-muted-foreground mt-1">{card.change}</p>
           </div>
         ))}

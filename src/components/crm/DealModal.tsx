@@ -1,10 +1,13 @@
 import { useState, useEffect, useMemo } from 'react';
+import { useNavigate } from 'react-router-dom';
+import { useQuery } from '@tanstack/react-query';
+import { supabase } from '@/lib/supabase';
 import { Deal, Stage, ServiceType, LossReason, LeadSource, DealInstallmentDraft, STAGES, LOSS_REASONS, LEAD_SOURCES, SERVICE_TYPES } from '@/types/crm';
 import { getStageConfig, formatCurrency } from '@/lib/crm-utils';
 import { fetchInstallmentsByDeal, saveInstallments, markInstallmentReceived, unmarkInstallmentReceived } from '@/lib/installments';
 import { useAuth } from '@/contexts/AuthContext';
 import { toast } from 'sonner';
-import { X, Trash2, Save, MapPin, Phone, Calendar, User, Truck, Plus, Wallet, CheckCircle2, Undo2, FileText } from 'lucide-react';
+import { X, Trash2, Save, MapPin, Phone, Calendar, User, Truck, Plus, Wallet, CheckCircle2, Undo2, FileText, MessageCircle } from 'lucide-react';
 import PropostaModal from './PropostaModal';
 
 const PROPOSTA_STAGES: Stage[] = ['orcamento_enviado', 'negociacao', 'fechado'];
@@ -20,7 +23,7 @@ interface DealModalProps {
 
 const emptyForm = {
   nome: '', telefone: '', origem: '', destino: '', dataMudanca: '',
-  tipoServico: 'completo' as ServiceType, valor: 0, stage: 'lead_novo' as Stage,
+  tipoServico: 'completo' as ServiceType | '', valor: 0, stage: 'lead_novo' as Stage,
   parceiro: '', motivoPerda: undefined as LossReason | undefined,
   fonteLead: undefined as LeadSource | undefined,
 };
@@ -47,6 +50,19 @@ const DealModal = ({ deal, isOpen, onClose, onSave, onUpdate, onDelete }: DealMo
   const [receiptForm, setReceiptForm] = useState<ReceiptForm | null>(null);
   const [undoIdx, setUndoIdx] = useState<number | null>(null);
   const [showProposta, setShowProposta] = useState(false);
+  // Conversa de WhatsApp ligada a este negócio (quando o lead veio pela assistente de IA).
+  // O banco só devolve se o usuário puder ver a conversa (vendedor: só as dele; Head: todas).
+  const navigate = useNavigate();
+  const conversationQ = useQuery({
+    queryKey: ['deal-conversation', deal?.id],
+    enabled: isOpen && !!deal?.id,
+    queryFn: async () => {
+      const { data, error } = await supabase.from('crm_conversations').select('id').eq('deal_id', deal!.id).maybeSingle();
+      if (error) throw error;
+      return (data?.id as string | undefined) ?? null;
+    },
+  });
+
   const isEditing = !!deal;
   const showInstallments = isEditing && form.stage === 'fechado';
   const canGerarProposta = isEditing && PROPOSTA_STAGES.includes(form.stage);
@@ -238,13 +254,27 @@ const DealModal = ({ deal, isOpen, onClose, onSave, onUpdate, onDelete }: DealMo
                   Vendedor: {deal.sellerName}
                 </span>
               )}
+              {isEditing && conversationQ.data && (
+                <button
+                  type="button"
+                  onClick={() => {
+                    onClose();
+                    navigate(`/conversas?conversa=${conversationQ.data}`);
+                  }}
+                  className="inline-flex items-center gap-1 text-[11px] font-semibold px-2 py-0.5 rounded bg-primary text-primary-foreground hover:opacity-90 transition-opacity"
+                  title="Abrir a conversa de WhatsApp deste lead"
+                >
+                  <MessageCircle className="w-3 h-3" />
+                  Ir para a conversa
+                </button>
+              )}
             </div>
           </div>
           <button onClick={onClose} className="p-2 rounded-lg hover:bg-muted transition-colors"><X className="w-4 h-4" /></button>
         </div>
 
         <form onSubmit={handleSubmit} className="p-5 space-y-4">
-          <div className="grid grid-cols-2 gap-4">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <div>
               <label className="text-xs font-medium text-muted-foreground mb-1 flex items-center gap-1"><User className="w-3 h-3" />Nome</label>
               <input required value={form.nome} onChange={e => setForm(p => ({ ...p, nome: e.target.value }))} className="w-full px-3 py-2 text-sm bg-muted border border-border rounded-lg text-card-foreground focus:outline-none focus:ring-2 focus:ring-primary/50" />
@@ -255,7 +285,7 @@ const DealModal = ({ deal, isOpen, onClose, onSave, onUpdate, onDelete }: DealMo
             </div>
           </div>
 
-          <div className="grid grid-cols-2 gap-4">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <div>
               <label className="text-xs font-medium text-muted-foreground mb-1 flex items-center gap-1"><MapPin className="w-3 h-3" />Origem</label>
               <input required value={form.origem} onChange={e => setForm(p => ({ ...p, origem: e.target.value }))} className="w-full px-3 py-2 text-sm bg-muted border border-border rounded-lg text-card-foreground focus:outline-none focus:ring-2 focus:ring-primary/50" />
@@ -266,7 +296,7 @@ const DealModal = ({ deal, isOpen, onClose, onSave, onUpdate, onDelete }: DealMo
             </div>
           </div>
 
-          <div className="grid grid-cols-2 gap-4">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <div>
               <label className="text-xs font-medium text-muted-foreground mb-1 flex items-center gap-1"><Calendar className="w-3 h-3" />Data da Mudança</label>
               <input type="date" required value={form.dataMudanca} onChange={e => setForm(p => ({ ...p, dataMudanca: e.target.value }))} className="w-full px-3 py-2 text-sm bg-muted border border-border rounded-lg text-card-foreground focus:outline-none focus:ring-2 focus:ring-primary/50" />
@@ -277,10 +307,11 @@ const DealModal = ({ deal, isOpen, onClose, onSave, onUpdate, onDelete }: DealMo
             </div>
           </div>
 
-          <div className="grid grid-cols-2 gap-4">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <div>
               <label className="text-xs font-medium text-muted-foreground mb-1 flex items-center gap-1"><Truck className="w-3 h-3" />Tipo de Serviço</label>
-              <select value={form.tipoServico} onChange={e => setForm(p => ({ ...p, tipoServico: e.target.value as ServiceType }))} className="w-full px-3 py-2 text-sm bg-muted border border-border rounded-lg text-card-foreground focus:outline-none focus:ring-2 focus:ring-primary/50">
+              <select value={form.tipoServico} onChange={e => setForm(p => ({ ...p, tipoServico: e.target.value as ServiceType | '' }))} className="w-full px-3 py-2 text-sm bg-muted border border-border rounded-lg text-card-foreground focus:outline-none focus:ring-2 focus:ring-primary/50">
+                <option value="">A definir</option>
                 {Object.entries(SERVICE_TYPES).map(([k, v]) => <option key={k} value={k}>{v}</option>)}
               </select>
             </div>

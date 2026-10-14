@@ -8,7 +8,7 @@ import Pipeline from '@/components/crm/Pipeline';
 import FilterBar from '@/components/crm/FilterBar';
 import CSVActions from '@/components/crm/CSVActions';
 import { TrashButton } from '@/components/crm/TrashModal';
-import { BarChart3, ChevronDown, ChevronUp, LogOut, Users, FileBarChart, Briefcase, Wallet, DollarSign } from 'lucide-react';
+import { BarChart3, ChevronDown, ChevronUp, LogOut, Users, FileBarChart, Briefcase, Wallet, DollarSign, MessageCircle } from 'lucide-react';
 
 const CRMDashboard = () => {
   const [showCharts, setShowCharts] = useState(false);
@@ -18,20 +18,28 @@ const CRMDashboard = () => {
     <div className="min-h-screen bg-background flex flex-col">
       {/* Header */}
       <header className="sticky top-0 z-30 bg-card/80 backdrop-blur-xl border-b border-border">
-        <div className="max-w-[1600px] mx-auto px-4 sm:px-6 py-3 flex items-center justify-between gap-3">
+        <div className="max-w-[1600px] mx-auto px-4 sm:px-6 py-3 flex flex-wrap items-center justify-between gap-x-3 gap-y-2">
           <div className="flex items-center gap-3">
             <div className="w-8 h-8 bg-primary rounded-lg flex items-center justify-center">
-              <span className="text-primary-foreground font-bold text-sm">N</span>
+              <span className="text-primary-foreground font-bold text-sm">A</span>
             </div>
             <div>
-              <h1 className="text-base font-bold text-card-foreground tracking-tight">NOG CRM</h1>
+              <h1 className="text-base font-bold text-card-foreground tracking-tight">Amitran CRM</h1>
               <p className="text-[11px] text-muted-foreground">
                 {profile?.name} · {isHead ? 'Head de Vendas' : 'Vendedor'}
               </p>
             </div>
           </div>
 
-          <div className="flex items-center gap-2">
+          <div className="flex items-center gap-2 w-full sm:w-auto overflow-x-auto scrollbar-thin pb-1 sm:pb-0 [&>*]:shrink-0">
+            <Link
+              to="/conversas"
+              className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium rounded-md bg-primary text-primary-foreground hover:opacity-90 transition-opacity"
+              title="Conversas do WhatsApp"
+            >
+              <MessageCircle className="w-3.5 h-3.5" />
+              <span className="hidden sm:inline">Conversas</span>
+            </Link>
             <Link
               to="/carteira"
               className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium rounded-md bg-muted text-muted-foreground hover:text-card-foreground hover:bg-accent transition-colors"

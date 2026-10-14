@@ -59,7 +59,7 @@ const DealCard = ({ deal, onClick }: DealCardProps) => {
         </span>
         <span className={`stage-badge ${stage.bgColor} ${stage.textColor}`}>
           <span className={`w-1.5 h-1.5 rounded-full ${stage.color}`} />
-          {deal.tipoServico === 'completo' ? 'Completo' : 'Econômico'}
+          {deal.tipoServico === 'completo' ? 'Completo' : deal.tipoServico === 'economico' ? 'Econômico' : 'A definir'}
         </span>
       </div>
 

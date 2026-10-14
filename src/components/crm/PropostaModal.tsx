@@ -1,10 +1,14 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
+import { supabase } from '@/lib/supabase';
+import { downloadPropostaPdf, sendPropostaWhatsapp } from '@/lib/whatsapp-api';
+import { isWindowOpen } from '@/lib/whatsapp-utils';
 import { Deal, Profile } from '@/types/crm';
 import { useCRM } from '@/contexts/CRMContext';
 import { buildPropostaHtml, defaultTotal, formatDateBR, imprimirProposta, type PropostaForm } from '@/lib/proposta';
 import { formatCurrency } from '@/lib/crm-utils';
 import { toast } from 'sonner';
-import { X, Printer, Loader2 } from 'lucide-react';
+import { X, Printer, Loader2, Download, MessageCircle } from 'lucide-react';
 
 interface PropostaModalProps {
   deal: Deal;
@@ -41,7 +45,8 @@ const sanitizeFileName = (s: string): string =>
   s.replace(/[^\p{L}\p{N}_\- ]+/gu, '').trim().replace(/\s+/g, '_') || 'cliente';
 
 const PropostaModal = ({ deal, isOpen, onClose }: PropostaModalProps) => {
-  const { profiles, updateDeal } = useCRM();
+  const { profiles, updateDeal, refresh } = useCRM();
+  const queryClient = useQueryClient();
   const vendedor = useMemo(() => profiles.find(p => p.id === deal.sellerId), [profiles, deal.sellerId]);
 
   const [form, setForm] = useState<PropostaForm>(() => buildInitialForm(deal, vendedor));
@@ -50,6 +55,8 @@ const PropostaModal = ({ deal, isOpen, onClose }: PropostaModalProps) => {
   const [loadingTemplate, setLoadingTemplate] = useState(true);
   const [generating, setGenerating] = useState(false);
   const [showConfirm, setShowConfirm] = useState(false);
+  const [downloading, setDownloading] = useState(false);
+  const [sending, setSending] = useState(false);
   const debounceRef = useRef<number | null>(null);
 
   // Reseta form quando o deal muda
@@ -130,7 +137,77 @@ const PropostaModal = ({ deal, isOpen, onClose }: PropostaModalProps) => {
     return diffs;
   }, [form, deal]);
 
+  // Conversa de WhatsApp do lead (existe quando ele veio pela Carol). O banco só devolve se o usuário puder vê-la.
+  const conversationQ = useQuery({
+    queryKey: ['deal-conversation-window', deal.id],
+    enabled: isOpen,
+    refetchInterval: 15_000,
+    queryFn: async () => {
+      const { data, error } = await supabase.from('crm_conversations').select('id, last_inbound_at').eq('deal_id', deal.id).maybeSingle();
+      if (error) throw error;
+      return data as { id: string; last_inbound_at: string | null } | null;
+    },
+  });
+
   if (!isOpen) return null;
+
+  const hasConversation = !!conversationQ.data;
+  const windowOpen = hasConversation && isWindowOpen(conversationQ.data?.last_inbound_at ?? null);
+  const busy = generating || downloading || sending;
+
+  const updateDealFromForm = async () => {
+    await updateDeal(deal.id, {
+      nome: form.nomeCliente,
+      telefone: form.telefoneCliente,
+      dataMudanca: form.dataMudanca,
+      origem: form.origem,
+      destino: form.destino,
+      valor: Number(form.valorMudanca) || 0,
+    });
+    toast.success('Deal atualizado');
+  };
+
+  // Baixa o PDF gerado pelo servidor (mesma qualidade da impressão, sem diálogo).
+  const handleDownloadPdf = async () => {
+    setDownloading(true);
+    try {
+      const { blob, filename } = await downloadPropostaPdf(deal.id, form);
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = filename;
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+      setTimeout(() => URL.revokeObjectURL(url), 60_000);
+      toast.success('PDF gerado e baixado');
+    } catch (err) {
+      toast.error((err as Error).message);
+    } finally {
+      setDownloading(false);
+    }
+  };
+
+  // Gera o PDF no servidor e envia ao cliente pelo WhatsApp (pede confirmação: é uma ação externa).
+  const handleSendWhatsapp = async () => {
+    if (!window.confirm(`Enviar a proposta em PDF para ${form.nomeCliente || 'o cliente'} pelo WhatsApp agora?\n\nO cliente vai receber o arquivo na conversa.`)) return;
+    setSending(true);
+    try {
+      if (changedFields.length > 0 && window.confirm('Você alterou dados da proposta. Atualizar também o negócio com esses dados?')) {
+        await updateDealFromForm();
+      }
+      await sendPropostaWhatsapp(deal.id, form);
+      toast.success('Proposta enviada pelo WhatsApp');
+      await refresh(); // a etapa pode ter mudado para "Orçamento enviado"
+      queryClient.invalidateQueries({ queryKey: ['wa-messages'] });
+      queryClient.invalidateQueries({ queryKey: ['wa-conversations'] });
+      onClose();
+    } catch (err) {
+      toast.error((err as Error).message);
+    } finally {
+      setSending(false);
+    }
+  };
 
   const handleGerarClick = () => {
     if (changedFields.length > 0) {
@@ -322,19 +399,40 @@ const PropostaModal = ({ deal, isOpen, onClose }: PropostaModalProps) => {
         <div className="flex items-center justify-end gap-3 p-4 border-t border-border shrink-0">
           <button
             onClick={onClose}
-            disabled={generating}
+            disabled={busy}
             className="px-4 py-2 text-sm text-muted-foreground hover:bg-muted rounded-lg transition-colors disabled:opacity-50"
           >
             Cancelar
           </button>
           <button
             onClick={handleGerarClick}
-            disabled={generating || loadingTemplate}
-            className="flex items-center gap-1.5 px-4 py-2 text-sm bg-primary text-primary-foreground rounded-lg hover:opacity-90 transition-opacity disabled:opacity-50 disabled:cursor-not-allowed"
+            disabled={busy || loadingTemplate}
+            title="Abre a impressão do navegador (Salvar como PDF)"
+            className="flex items-center gap-1.5 px-4 py-2 text-sm bg-muted text-card-foreground rounded-lg hover:bg-accent transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
           >
             {generating ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Printer className="w-3.5 h-3.5" />}
-            {generating ? 'Abrindo...' : 'Gerar PDF'}
+            {generating ? 'Abrindo...' : 'Imprimir'}
           </button>
+          <button
+            onClick={handleDownloadPdf}
+            disabled={busy}
+            title="O servidor gera o PDF e baixa direto, sem diálogo"
+            className="flex items-center gap-1.5 px-4 py-2 text-sm bg-muted text-card-foreground rounded-lg hover:bg-accent transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+          >
+            {downloading ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Download className="w-3.5 h-3.5" />}
+            {downloading ? 'Gerando PDF...' : 'Baixar PDF'}
+          </button>
+          {hasConversation && (
+            <button
+              onClick={handleSendWhatsapp}
+              disabled={busy || !windowOpen}
+              title={windowOpen ? 'Gera o PDF e envia ao cliente pela conversa de WhatsApp' : 'Janela de 24h fechada: o cliente precisa escrever de novo para liberar o envio'}
+              className="flex items-center gap-1.5 px-4 py-2 text-sm bg-primary text-primary-foreground rounded-lg hover:opacity-90 transition-opacity disabled:opacity-50 disabled:cursor-not-allowed"
+            >
+              {sending ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <MessageCircle className="w-3.5 h-3.5" />}
+              {sending ? 'Enviando...' : 'Enviar pelo WhatsApp'}
+            </button>
+          )}
         </div>
       </div>
 

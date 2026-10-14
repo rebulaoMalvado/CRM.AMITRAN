@@ -12,6 +12,7 @@ import Report from "./pages/Report.tsx";
 import Carteira from "./pages/Carteira.tsx";
 import Parcelas from "./pages/Parcelas.tsx";
 import Financeiro from "./pages/Financeiro.tsx";
+import Conversas from "./pages/Conversas.tsx";
 import NotFound from "./pages/NotFound.tsx";
 
 const queryClient = new QueryClient();
@@ -70,6 +71,14 @@ const App = () => (
               element={
                 <ProtectedRoute>
                   <Financeiro />
+                </ProtectedRoute>
+              }
+            />
+            <Route
+              path="/conversas"
+              element={
+                <ProtectedRoute>
+                  <Conversas />
                 </ProtectedRoute>
               }
             />

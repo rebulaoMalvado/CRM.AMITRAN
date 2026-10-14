@@ -36,7 +36,7 @@ interface ExtResource {
   id: string;
 }
 
-let cachedFlatTemplate: Promise<string> | null = null;
+const cachedFlatTemplates = new Map<string, Promise<string>>();
 
 const formatBRL = (n: number) =>
   (Number.isFinite(n) ? n : 0).toLocaleString('pt-BR', {
@@ -81,7 +81,7 @@ async function gunzip(bytes: Uint8Array): Promise<Uint8Array> {
   if (!DS) throw new Error('DecompressionStream não suportado neste navegador');
   const ds = new DS('gzip');
   const writer = ds.writable.getWriter();
-  void writer.write(bytes);
+  void writer.write(bytes as unknown as BufferSource);
   void writer.close();
   const reader = ds.readable.getReader();
   const chunks: Uint8Array[] = [];
@@ -107,10 +107,11 @@ async function gunzip(bytes: Uint8Array): Promise<Uint8Array> {
  * (volume / tipo / valor seguro) permanecem intactos para serem substituídos
  * por applyFormToTemplate.
  */
-async function loadFlatTemplate(): Promise<string> {
-  if (cachedFlatTemplate) return cachedFlatTemplate;
-  cachedFlatTemplate = (async () => {
-    const res = await fetch(TEMPLATE_URL);
+async function loadFlatTemplate(templateUrl: string = TEMPLATE_URL): Promise<string> {
+  const cached = cachedFlatTemplates.get(templateUrl);
+  if (cached) return cached;
+  const loading = (async () => {
+    const res = await fetch(templateUrl);
     if (!res.ok) throw new Error(`Falha ao carregar template (${res.status})`);
     const raw = await res.text();
 
@@ -158,7 +159,10 @@ async function loadFlatTemplate(): Promise<string> {
 
     return template;
   })();
-  return cachedFlatTemplate;
+  cachedFlatTemplates.set(templateUrl, loading);
+  // Se falhar, não guarda o erro no cache (a próxima tentativa busca de novo).
+  loading.catch(() => cachedFlatTemplates.delete(templateUrl));
+  return loading;
 }
 
 /**
@@ -218,8 +222,8 @@ export function applyFormToTemplate(template: string, form: PropostaForm): strin
 /**
  * Carrega + aplica o form. Usado pelo preview e pela geração de PDF.
  */
-export async function buildPropostaHtml(form: PropostaForm): Promise<string> {
-  const template = await loadFlatTemplate();
+export async function buildPropostaHtml(form: PropostaForm, templateUrl?: string): Promise<string> {
+  const template = await loadFlatTemplate(templateUrl);
   return applyFormToTemplate(template, form);
 }
 
@@ -253,7 +257,7 @@ async function waitForImages(doc: Document): Promise<void> {
 //    backgrounds no print — `print-color-adjust: exact` ignora isso.
 // 2. Neutraliza o destaque amarelo dos placeholders (.ph) — visual só do
 //    preview, no PDF deve sair como texto normal.
-const PRINT_OVERRIDE_CSS = `
+export const PRINT_OVERRIDE_CSS = `
   *, *::before, *::after {
     -webkit-print-color-adjust: exact !important;
     print-color-adjust: exact !important;
@@ -279,6 +283,15 @@ const PRINT_OVERRIDE_CSS = `
 `;
 
 /**
+ * HTML da proposta pronto para virar PDF (com o CSS de impressão que preserva cores e fotos).
+ * Usado pelo navegador (diálogo de impressão) e pelo servidor (geração do PDF para enviar).
+ */
+export async function buildPrintableHtml(form: PropostaForm, templateUrl?: string): Promise<string> {
+  const html = await buildPropostaHtml(form, templateUrl);
+  return html.replace(/<head([^>]*)>/i, (_, attrs) => `<head${attrs}><style id="__print_override">${PRINT_OVERRIDE_CSS}</style>`);
+}
+
+/**
  * Abre o diálogo nativo de impressão do navegador com a proposta renderizada.
  * O Chrome usa o motor Skia/PDF (mesmo que o designer usou) — produz PDF
  * vetorial com fontes corretas, sem perda de espaços nem placeholders amarelos.
@@ -287,13 +300,8 @@ const PRINT_OVERRIDE_CSS = `
  * `documentTitle` é usado pelo Chrome como sugestão de filename.
  */
 export async function imprimirProposta(form: PropostaForm, documentTitle: string): Promise<void> {
-  const html = await buildPropostaHtml(form);
-
   // Injeta o override CSS dentro do <head> antes de renderizar
-  const printableHtml = html.replace(
-    /<head([^>]*)>/i,
-    (_, attrs) => `<head${attrs}><style id="__print_override">${PRINT_OVERRIDE_CSS}</style>`
-  );
+  const printableHtml = await buildPrintableHtml(form);
 
   const iframe = document.createElement('iframe');
   iframe.style.position = 'fixed';
@@ -341,5 +349,5 @@ export async function imprimirProposta(form: PropostaForm, documentTitle: string
  * Limpa o cache do template (útil em testes).
  */
 export function _resetPropostaCache(): void {
-  cachedFlatTemplate = null;
+  cachedFlatTemplates.clear();
 }
