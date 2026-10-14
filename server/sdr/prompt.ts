@@ -11,7 +11,7 @@ const FIELD_LABELS: Record<QualificationKey, string> = {
   nome: "nome do cliente",
   origem: "endereço (ou bairro/cidade) de ORIGEM: de onde a mudança sai",
   destino: "endereço (ou bairro/cidade) de DESTINO: para onde vai",
-  data_mudanca: "data (ou período) desejada para a mudança, do jeito que o cliente falou",
+  data_mudanca: "data desejada para a mudança. Se o cliente deu um dia específico (inclusive 'terça que vem' ou 'dia 15'), escreva a data completa no formato DD/MM/AAAA, calculada a partir da data de hoje informada abaixo; se for vago ('ainda não sei', 'no fim do mês'), escreva do jeito que ele falou",
   data_iso: "a MESMA data no formato AAAA-MM-DD, só se o cliente deu um dia específico (use a data de hoje informada abaixo para entender 'dia 15' ou 'semana que vem'); null se for vago, como 'ainda não sei'",
   bens: "lista dos bens que serão transportados (tamanho do imóvel, móveis e itens principais, itens grandes ou delicados). NÃO precisa preencher se o cliente já enviou fotos ou vídeos",
 };
