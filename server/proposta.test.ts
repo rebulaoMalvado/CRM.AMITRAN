@@ -24,6 +24,7 @@ function setup(opts: {
   deal?: boolean;
   conversation?: Partial<ConversationRow> | null;
   render?: PropostaDeps["renderPdf"];
+  cover?: PropostaDeps["renderCover"];
 } = {}) {
   const inserted: Parameters<SendStore["insertOutboundMessage"]>[0][] = [];
   const marked: string[] = [];
@@ -44,6 +45,7 @@ function setup(opts: {
       markProposalSent: async (id) => void marked.push(id),
     },
     renderPdf,
+    ...(opts.cover ? { renderCover: opts.cover } : {}),
     upload,
     sendMedia,
     now: () => NOW,
@@ -87,6 +89,73 @@ describe("handlePropostaSend", () => {
     const t = setup();
     await handlePropostaSend(req(body({ caption: "Oi! Proposta em anexo." })), t.deps);
     expect(t.inserted[0].content).toBe("Oi! Proposta em anexo.");
+  });
+
+  describe("capa da proposta (imagem antes do PDF)", () => {
+    const jpeg = () => new Uint8Array(150_000).fill(1);
+    const defaultText = "Olá, Maria! Segue a proposta da Amitran Mudanças para a sua mudança de Santa Maria, BH para São Joaquim, BH. Qualquer dúvida é só me chamar!";
+
+    it("manda a capa como IMAGEM (com a legenda) e depois o PDF (sem legenda repetida)", async () => {
+      const t = setup({ cover: vi.fn(async () => jpeg()) });
+      const res = await handlePropostaSend(req(body({ mark_sent: true })), t.deps);
+      expect(res.status).toBe(200);
+      expect(t.sendMedia).toHaveBeenCalledTimes(2);
+      expect(t.sendMedia).toHaveBeenNthCalledWith(1, config, expect.objectContaining({ kind: "image", caption: defaultText, filename: "Proposta Amitran - capa.jpg" }));
+      expect(t.sendMedia).toHaveBeenNthCalledWith(2, config, expect.objectContaining({ kind: "document", caption: null, filename: "Proposta Amitran - Maria Souza.pdf" }));
+      expect(t.inserted.map((m) => m.type)).toEqual(["image", "document"]);
+      expect(t.marked).toEqual([DEAL]);
+    });
+
+    it("usa a legenda escolhida pelo vendedor na imagem", async () => {
+      const t = setup({ cover: vi.fn(async () => jpeg()) });
+      await handlePropostaSend(req(body({ caption: "Oi! Proposta em anexo." })), t.deps);
+      expect(t.sendMedia).toHaveBeenNthCalledWith(1, config, expect.objectContaining({ kind: "image", caption: "Oi! Proposta em anexo." }));
+    });
+
+    it("sem capa (null), só o PDF com a legenda, como antes", async () => {
+      const t = setup({ cover: vi.fn(async () => null) });
+      const res = await handlePropostaSend(req(body()), t.deps);
+      expect(res.status).toBe(200);
+      expect(t.sendMedia).toHaveBeenCalledTimes(1);
+      expect(t.sendMedia).toHaveBeenCalledWith(config, expect.objectContaining({ kind: "document", caption: defaultText }));
+    });
+
+    it("se gerar a capa der erro, o PDF vai do mesmo jeito (com a legenda)", async () => {
+      const t = setup({ cover: vi.fn(async () => { throw new Error("chromium caiu"); }) });
+      const res = await handlePropostaSend(req(body({ mark_sent: true })), t.deps);
+      expect(res.status).toBe(200);
+      expect(t.sendMedia).toHaveBeenCalledTimes(1);
+      expect(t.sendMedia).toHaveBeenCalledWith(config, expect.objectContaining({ kind: "document", caption: defaultText }));
+      expect(t.marked).toEqual([DEAL]);
+    });
+
+    it("se o ENVIO da imagem falhar, o PDF ainda vai com a legenda", async () => {
+      const t = setup({ cover: vi.fn(async () => jpeg()) });
+      t.upload.mockResolvedValueOnce({ ok: false, mediaId: undefined, error: "falha no upload" } as never);
+      const res = await handlePropostaSend(req(body({ mark_sent: true })), t.deps);
+      expect(res.status).toBe(200);
+      expect(t.sendMedia).toHaveBeenCalledTimes(1);
+      expect(t.sendMedia).toHaveBeenCalledWith(config, expect.objectContaining({ kind: "document", caption: defaultText }));
+      expect(t.inserted.map((m) => m.status)).toEqual(["failed", "sent"]);
+      expect(t.marked).toEqual([DEAL]);
+    });
+
+    it("capa grande demais (limite de imagem do WhatsApp) é ignorada: vai só o PDF", async () => {
+      const t = setup({ cover: vi.fn(async () => new Uint8Array(6 * 1024 * 1024)) });
+      const res = await handlePropostaSend(req(body()), t.deps);
+      expect(res.status).toBe(200);
+      expect(t.sendMedia).toHaveBeenCalledTimes(1);
+      expect(t.sendMedia).toHaveBeenCalledWith(config, expect.objectContaining({ kind: "document", caption: defaultText }));
+    });
+
+    it("janela fechada continua barrando antes de gerar qualquer coisa", async () => {
+      const cover = vi.fn(async () => jpeg());
+      const t = setup({ cover, conversation: { last_inbound_at: hoursAgo(30) } });
+      const res = await handlePropostaSend(req(body()), t.deps);
+      expect(res.status).toBe(409);
+      expect(cover).not.toHaveBeenCalled();
+      expect(t.sendMedia).not.toHaveBeenCalled();
+    });
   });
 
   it("janela de 24h fechada: 409 e o PDF nem é gerado", async () => {

@@ -5,6 +5,7 @@
 //
 // Uso (no Terminal):
 //   node scripts/meta-subscribe-app.mjs <WABA_ID>
+//   pbpaste | node scripts/meta-subscribe-app.mjs <WABA_ID>   (lê o token da área de transferência do Mac)
 //
 // O token (de "usuário do sistema" com acesso a essa conta) é pedido ESCONDIDO e usado só
 // aqui, em memória: não é gravado em arquivo nem aparece na tela.
@@ -44,7 +45,22 @@ function askHidden(prompt) {
   });
 }
 
-const token = await askHidden("Cole o token e aperte Enter (não aparece na tela): ");
+/** Token vindo por "pipe" (ex.: pbpaste | node scripts/meta-subscribe-app.mjs ID): não depende de colar no Terminal. */
+async function readPiped() {
+  let data = "";
+  process.stdin.setEncoding("utf8");
+  for await (const chunk of process.stdin) data += chunk;
+  return data.trim();
+}
+
+const token = (process.stdin.isTTY ? await askHidden("Cole o token e aperte Enter (não aparece na tela): ") : await readPiped())
+  .replace(/\x1b\[20[01]~/g, "")
+  .trim();
+if (token.length < 50) {
+  console.error(`Token vazio ou curto demais (${token.length} caracteres). Copie o token de novo e repita.`);
+  process.exit(1);
+}
+console.log(`Token recebido (${token.length} caracteres, não exibido).`);
 if (!token) {
   console.error("Nenhum token informado.");
   process.exit(1);
