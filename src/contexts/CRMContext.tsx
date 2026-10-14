@@ -60,7 +60,7 @@ function rowToDeal(row: DealRow, profileMap: Map<string, Profile>): Deal {
     origem: row.origem || '',
     destino: row.destino || '',
     dataMudanca: row.data_mudanca || '',
-    tipoServico: row.tipo_servico || 'completo',
+    tipoServico: row.tipo_servico || '',
     valor: Number(row.valor) || 0,
     stage: row.stage,
     parceiro: row.parceiro || '',
@@ -81,7 +81,7 @@ function dealToRow(deal: Partial<Deal>): Partial<DealRow> {
   if (deal.origem !== undefined) row.origem = deal.origem;
   if (deal.destino !== undefined) row.destino = deal.destino;
   if (deal.dataMudanca !== undefined) row.data_mudanca = deal.dataMudanca || null;
-  if (deal.tipoServico !== undefined) row.tipo_servico = deal.tipoServico;
+  if (deal.tipoServico !== undefined) row.tipo_servico = deal.tipoServico || null;
   if (deal.valor !== undefined) row.valor = deal.valor;
   if (deal.stage !== undefined) row.stage = deal.stage;
   if (deal.parceiro !== undefined) row.parceiro = deal.parceiro;

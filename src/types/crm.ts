@@ -25,7 +25,8 @@ export interface Deal {
   origem: string;
   destino: string;
   dataMudanca: string;
-  tipoServico: ServiceType;
+  /** '' = ainda a definir (negócio criado pela assistente de IA deixa em branco). */
+  tipoServico: ServiceType | '';
   valor: number;
   stage: Stage;
   parceiro: string;

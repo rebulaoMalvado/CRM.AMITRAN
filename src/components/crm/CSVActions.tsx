@@ -59,7 +59,7 @@ const CSVActions = () => {
     const today = new Date().toISOString().split('T')[0];
     const ownerTag = profile?.name ? `-${profile.name.replace(/\s+/g, '_').toLowerCase()}` : '';
     a.href = url;
-    a.download = `crm-nog${ownerTag}-${today}.csv`;
+    a.download = `crm-amitran${ownerTag}-${today}.csv`;
     a.click();
     URL.revokeObjectURL(url);
     toast.success(`${filteredDeals.length} leads exportados`);

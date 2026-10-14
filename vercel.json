@@ -1,6 +1,12 @@
 {
   "installCommand": "npm install --legacy-peer-deps",
   "rewrites": [
-    { "source": "/((?!assets/).*)", "destination": "/index.html" }
-  ]
+    { "source": "/((?!assets/|api/).*)", "destination": "/index.html" }
+  ],
+  "functions": {
+    "api/proposta/*.ts": {
+      "maxDuration": 90,
+      "includeFiles": "node_modules/@sparticuz/chromium/**"
+    }
+  }
 }
