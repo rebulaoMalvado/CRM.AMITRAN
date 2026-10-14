@@ -1,5 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import { isBusinessHoursBrt, mentionsPrice, sanitizeOutput, startOfDayBrt } from "./guards.js";
+import { formatIsoDateBr, isBusinessHoursBrt, mentionsPrice, sanitizeOutput, startOfDayBrt } from "./guards.js";
 import { PRICE_FALLBACK_REPLY, countMedia, isAutoAllowed, processConversation, usedNameRecently, toLlmMessages, type HistoryMessage, type SdrConversation, type SdrDeps, type SdrStore } from "./engine.js";
 import { LlmError, type LlmProvider } from "./llm.js";
 import { buildSystemPrompt } from "./prompt.js";
@@ -71,6 +71,36 @@ describe("sanitizeOutput (a IA só escreve campos permitidos)", () => {
 
   it("resposta vazia vira null", () => {
     expect(sanitizeOutput({ ...base, reply: "   " })?.reply).toBeNull();
+  });
+
+  describe("data em formato de calendário", () => {
+    const withDate = (data_mudanca: string | null, data_iso: string | null) => ({ ...base, qualification: { ...base.qualification, data_mudanca, data_iso } });
+
+    it("com data real, 'terça que vem' vira 20/10/2026 (e o data_iso fica guardado)", () => {
+      const out = sanitizeOutput(withDate("terça que vem", "2026-10-20"), "2026-10-14");
+      expect(out?.qualification.data_mudanca).toBe("20/10/2026");
+      expect(out?.qualification.data_iso).toBe("2026-10-20");
+    });
+
+    it("mesmo sem o texto do cliente, a data de calendário aparece", () => {
+      expect(sanitizeOutput(withDate(null, "2026-12-05"), "2026-10-14")?.qualification.data_mudanca).toBe("05/12/2026");
+    });
+
+    it("data vaga (sem data_iso) mantém o que o cliente disse", () => {
+      expect(sanitizeOutput(withDate("no fim do mês", null), "2026-10-14")?.qualification.data_mudanca).toBe("no fim do mês");
+    });
+
+    it("data impossível ou passada é descartada e o texto do cliente é mantido", () => {
+      for (const bad of ["2020-01-01", "2026-02-31", "amanhã", "2026-10-13"]) {
+        const out = sanitizeOutput(withDate("terça que vem", bad), "2026-10-14");
+        expect(out?.qualification.data_mudanca).toBe("terça que vem");
+        expect(out?.qualification.data_iso).toBeUndefined();
+      }
+    });
+
+    it("formatIsoDateBr", () => {
+      expect(formatIsoDateBr("2026-10-20")).toBe("20/10/2026");
+    });
   });
 });
 
@@ -541,7 +571,9 @@ describe("criação do negócio no funil (lead qualificado)", () => {
 
   it("faltando qualquer informação essencial (ex.: nome, ou bens sem foto), NÃO cria", async () => {
     for (const missing of ["nome", "origem", "destino", "data_mudanca", "bens"] as const) {
-      const t = makeDeps({ createDeals: true, llm: async () => out({ qualification: { ...FULL_Q, [missing]: null } }) });
+      // "sem data" = sem o texto E sem a data de calendário (uma data real já conta como data conhecida).
+      const gap = missing === "data_mudanca" ? { data_mudanca: null, data_iso: null } : { [missing]: null };
+      const t = makeDeps({ createDeals: true, llm: async () => out({ qualification: { ...FULL_Q, ...gap } }) });
       await processConversation(t.deps, CONV);
       expect(t.calls.created).toHaveLength(0);
     }

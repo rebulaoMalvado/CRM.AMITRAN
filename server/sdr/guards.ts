@@ -53,6 +53,11 @@ export function isValidIsoDate(value: string, today?: string): boolean {
   return today ? value >= today : true;
 }
 
+/** "2026-10-20" -> "20/10/2026" (formato de data do Brasil; o ano evita confusão com janeiro do ano que vem). */
+export function formatIsoDateBr(iso: string): string {
+  return `${iso.slice(8, 10)}/${iso.slice(5, 7)}/${iso.slice(0, 4)}`;
+}
+
 export function sanitizeOutput(raw: unknown, today?: string): CleanOutput | null {
   const parsed = llmOutputSchema.safeParse(raw);
   if (!parsed.success) return null;
@@ -68,6 +73,9 @@ export function sanitizeOutput(raw: unknown, today?: string): CleanOutput | null
 
   // A data em formato de calendário só vale se for uma data real e futura (senão, descarta).
   if (qualification.data_iso && !isValidIsoDate(qualification.data_iso, today)) delete qualification.data_iso;
+  // Com uma data real, a anotação (conversa, aviso ao vendedor, lead) mostra a data de calendário
+  // (ex.: 20/10/2026) e não "terça que vem". Sem data específica, fica o que o cliente disse.
+  if (qualification.data_iso) qualification.data_mudanca = formatIsoDateBr(qualification.data_iso);
 
   const reply = out.reply?.trim().slice(0, MAX_REPLY) || null;
   return {
