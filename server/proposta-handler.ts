@@ -19,6 +19,11 @@ export interface PropostaStore {
 export interface PropostaDeps extends SendMediaDeps {
   proposta: PropostaStore;
   renderPdf: (form: PropostaForm) => Promise<Uint8Array>;
+  /**
+   * Foto (JPEG) da capa da proposta. Opcional: com ela, o cliente recebe primeiro a imagem da capa
+   * (que aparece na hora no WhatsApp) e depois o PDF. Sem ela, ou se falhar, vai só o PDF.
+   */
+  renderCover?: (form: PropostaForm) => Promise<Uint8Array | null>;
 }
 
 const str = (max: number) => z.string().max(max);
@@ -49,6 +54,12 @@ const pdfSchema = z.object({ deal_id: z.string().uuid(), form: formSchema });
 
 const json = (body: Record<string, unknown>, status: number) =>
   new Response(JSON.stringify(body), { status, headers: { "content-type": "application/json; charset=utf-8" } });
+
+const toArrayBuffer = (bytes: Uint8Array): ArrayBuffer => {
+  const copy = new ArrayBuffer(bytes.byteLength);
+  new Uint8Array(copy).set(bytes);
+  return copy;
+};
 
 const safeName = (s: string) => s.replace(/[^\p{L}\p{N}_\- ]+/gu, "").trim().replace(/\s+/g, " ") || "cliente";
 export const proposalFilename = (clientName: string) => `${COMPANY.proposalFilePrefix} - ${safeName(clientName)}.pdf`;
@@ -163,16 +174,41 @@ export async function handlePropostaSend(request: Request, deps: PropostaDeps): 
   const kind = classifyUpload("application/pdf", pdf.byteLength, MAX_PDF_BYTES);
   if (!kind.ok || !kind.kind) return json({ error: "arquivo_invalido", message: kind.message ?? "PDF inválido." }, kind.status ?? 400);
 
-  const copy = new ArrayBuffer(pdf.byteLength);
-  new Uint8Array(copy).set(pdf);
+  const finalCaption = (caption?.trim() || defaultCaption(form)).slice(0, 1000);
+
+  // 1) Capa como imagem (com a legenda). Qualquer falha aqui é ignorada: o PDF vai do mesmo jeito.
+  let pdfCaption: string | null = finalCaption;
+  if (deps.renderCover) {
+    try {
+      const cover = await deps.renderCover(form);
+      const coverKind = cover ? classifyUpload("image/jpeg", cover.byteLength) : null;
+      if (cover && coverKind?.ok && coverKind.kind) {
+        const coverRes = await deliverFile(deps, {
+          user,
+          conversation,
+          kind: coverKind.kind,
+          bytes: toArrayBuffer(cover),
+          mime: "image/jpeg",
+          filename: `${COMPANY.proposalFilePrefix} - capa.jpg`,
+          caption: finalCaption,
+        });
+        if (coverRes.status === 200) pdfCaption = null; // a legenda já foi junto com a capa
+        else console.error("[proposta/enviar] capa não enviada; seguindo só com o PDF");
+      }
+    } catch (err) {
+      console.error("[proposta/enviar] falha na capa; seguindo só com o PDF:", err instanceof Error ? err.message : err);
+    }
+  }
+
+  // 2) O PDF completo.
   const res = await deliverFile(deps, {
     user,
     conversation,
     kind: kind.kind,
-    bytes: copy,
+    bytes: toArrayBuffer(pdf),
     mime: "application/pdf",
     filename: proposalFilename(form.nomeCliente),
-    caption: (caption?.trim() || defaultCaption(form)).slice(0, 1000),
+    caption: pdfCaption,
   });
 
   if (res.status === 200 && mark_sent) await deps.proposta.markProposalSent(deal_id);
