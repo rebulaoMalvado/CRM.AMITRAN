@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react';
+import { createPortal } from 'react-dom';
 import { Deal, STAGES } from '@/types/crm';
 import { useCRM } from '@/contexts/CRMContext';
 import { formatCurrency } from '@/lib/crm-utils';
@@ -55,7 +56,9 @@ const TrashModal = ({ isOpen, onClose }: TrashModalProps) => {
     setBusyId(null);
   };
 
-  return (
+  // A janela é desenhada direto no <body> (portal), e não dentro do cabeçalho: o cabeçalho tem
+  // "backdrop-blur", e isso faz um elemento `fixed` ficar preso a ele (janela colada no topo, sem botão de fechar).
+  return createPortal(
     <div className="modal-overlay" onClick={onClose}>
       <div
         className="bg-card rounded-2xl border border-border shadow-2xl w-full max-w-2xl max-h-[85vh] flex flex-col overflow-hidden"
@@ -137,7 +140,8 @@ const TrashModal = ({ isOpen, onClose }: TrashModalProps) => {
           )}
         </div>
       </div>
-    </div>
+    </div>,
+    document.body,
   );
 };
 
