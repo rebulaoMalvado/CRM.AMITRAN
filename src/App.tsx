@@ -13,6 +13,7 @@ import Carteira from "./pages/Carteira.tsx";
 import Parcelas from "./pages/Parcelas.tsx";
 import Financeiro from "./pages/Financeiro.tsx";
 import Conversas from "./pages/Conversas.tsx";
+import RedefinirSenha from "./pages/RedefinirSenha.tsx";
 import NotFound from "./pages/NotFound.tsx";
 
 const queryClient = new QueryClient();
@@ -26,6 +27,7 @@ const App = () => (
         <AuthProvider>
           <Routes>
             <Route path="/login" element={<Login />} />
+            <Route path="/redefinir-senha" element={<RedefinirSenha />} />
             <Route
               path="/"
               element={

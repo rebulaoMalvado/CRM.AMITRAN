@@ -10,6 +10,10 @@ interface AuthContextType {
   isHead: boolean;
   signIn: (email: string, password: string) => Promise<{ error: string | null }>;
   signOut: () => Promise<void>;
+  /** Manda o e-mail com o link para criar uma senha nova (tela /redefinir-senha). */
+  requestPasswordReset: (email: string) => Promise<{ error: string | null }>;
+  /** Troca a senha de quem está logado (também serve para a senha nova depois do link do e-mail). */
+  changePassword: (newPassword: string) => Promise<{ error: string | null }>;
   refreshProfile: () => Promise<void>;
 }
 
@@ -79,6 +83,18 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     await supabase.auth.signOut();
   };
 
+  const requestPasswordReset = async (email: string) => {
+    const { error } = await supabase.auth.resetPasswordForEmail(email, {
+      redirectTo: `${window.location.origin}/redefinir-senha`,
+    });
+    return { error: error?.message || null };
+  };
+
+  const changePassword = async (newPassword: string) => {
+    const { error } = await supabase.auth.updateUser({ password: newPassword });
+    return { error: error?.message || null };
+  };
+
   const refreshProfile = async () => {
     if (session) setProfile(await fetchProfile(session.user.id));
   };
@@ -92,6 +108,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         isHead: profile?.role === 'head',
         signIn,
         signOut,
+        requestPasswordReset,
+        changePassword,
         refreshProfile,
       }}
     >
