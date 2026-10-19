@@ -1,3 +1,4 @@
+import { memo } from 'react';
 import { Deal } from '@/types/crm';
 import { formatCurrency, getStageConfig, isStuckDeal, isHotDeal, isNewDeal } from '@/lib/crm-utils';
 import { useAuth } from '@/contexts/AuthContext';
@@ -73,4 +74,4 @@ const DealCard = ({ deal, onClick }: DealCardProps) => {
   );
 };
 
-export default DealCard;
+export default memo(DealCard);
