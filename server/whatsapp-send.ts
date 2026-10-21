@@ -20,11 +20,16 @@ export interface SendResult {
   wamid?: string;
   /** Motivo curto da falha (quando !ok). */
   error?: string;
+  /**
+   * true = a Meta não respondeu a tempo (não recusou). A mensagem pode ter sido entregue mesmo assim
+   * (aconteceu com a Carol: o cliente respondeu à saudação que o CRM marcou como "falhou").
+   */
+  unconfirmed?: boolean;
 }
 
 const DEFAULT_API_VERSION = "v25.0";
 const DEFAULT_API_BASE_URL = "https://graph.facebook.com";
-const TIMEOUT_MS = 10_000;
+const TIMEOUT_MS = 20_000;
 
 /**
  * Envia uma mensagem de TEXTO pela Cloud API da Meta.
@@ -118,6 +123,7 @@ async function postMessage(config: WhatsappConfig, payload: Record<string, unkno
     return { ok: true, wamid };
   } catch (err) {
     const timedOut = err instanceof Error && (err.name === "TimeoutError" || err.name === "AbortError");
-    return { ok: false, error: timedOut ? "A Meta demorou demais para responder" : "Falha de rede ao falar com a Meta" };
+    if (timedOut) return { ok: false, error: "A Meta demorou demais para responder", unconfirmed: true };
+    return { ok: false, error: "Falha de rede ao falar com a Meta" };
   }
 }

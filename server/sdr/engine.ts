@@ -430,6 +430,18 @@ export async function processConversation(deps: SdrDeps, conversationId: string)
     if (sent.ok && sent.wamid) {
       await store.insertAiMessage({ conversationId, content: output.reply, status: "sent", error: null, whatsappMessageId: sent.wamid, payload });
       outcome = "sent";
+    } else if (sent.unconfirmed) {
+      // A Meta só demorou a responder: a mensagem costuma chegar ao cliente. Não derruba a Carol nem passa para humano;
+      // se não chegou, o cliente escreve de novo e a Carol responde.
+      await store.insertAiMessage({
+        conversationId,
+        content: output.reply,
+        status: "sent",
+        error: null,
+        whatsappMessageId: null,
+        payload: { ...payload, send_unconfirmed: true },
+      });
+      outcome = "sent";
     } else {
       await store.insertAiMessage({
         conversationId,

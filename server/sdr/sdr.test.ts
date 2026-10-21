@@ -412,6 +412,15 @@ describe("processConversation — modo automático liberado", () => {
     expect(t.calls.inserted[0]).toMatchObject({ status: "sent", whatsappMessageId: "wamid.OK" });
   });
 
+  it("Meta demorou (sem confirmação): grava como enviada, mantém a IA e NÃO passa para humano", async () => {
+    const send = vi.fn(async () => ({ ok: false, error: "A Meta demorou demais para responder", unconfirmed: true }));
+    const t = makeDeps({ config: { mode: "auto" }, allowAuto: true, send });
+    expect(await processConversation(t.deps, CONV)).toBe("sent");
+    expect(t.calls.inserted[0]).toMatchObject({ status: "sent", whatsappMessageId: null });
+    expect((t.calls.inserted[0] as { payload: Record<string, unknown> }).payload.send_unconfirmed).toBe(true);
+    expect(t.calls.handoffs).toBe(0);
+  });
+
   it("falha no envio: grava 'failed' e passa para humano", async () => {
     const send = vi.fn(async () => ({ ok: false, error: "Meta recusou" }));
     const t = makeDeps({ config: { mode: "auto" }, allowAuto: true, send });
