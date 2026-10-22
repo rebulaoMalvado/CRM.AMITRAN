@@ -470,11 +470,12 @@ export function createSdrStore(db: SupabaseClient, options: SdrStoreOptions = {}
     },
 
     async pickNextSeller() {
-      // Só entram no revezamento os vendedores da lista fixa (SDR_SELLER_POOL), na ordem dela.
+      // Só entram no revezamento as pessoas da lista fixa (SDR_SELLER_POOL), na ordem dela.
+      // Podem ser vendedores ou o Head (ex.: o Head cobre um vendedor de férias).
       // Sem lista: ninguém é escolhido e o lead fica com o Head, que distribui à mão.
       const pool = options.sellerPoolIds ?? [];
       if (pool.length === 0) return null;
-      const { data: sellers, error } = await db.from(TABLES.profiles).select("id").eq("role", "vendedor").in("id", pool);
+      const { data: sellers, error } = await db.from(TABLES.profiles).select("id").in("role", ["vendedor", "head"]).in("id", pool);
       if (error) throw new Error(`listar vendedores: ${error.message}`);
       const valid = new Set((sellers ?? []).map((row) => row.id as string));
       const ids = pool.filter((id) => valid.has(id));

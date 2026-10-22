@@ -125,12 +125,32 @@ describe("revezamento só entre os vendedores da lista", () => {
     expect(await createSdrStore(afterGabriel.db, { sellerPoolIds: pool }).pickNextSeller()).toBe("raufle");
   });
 
-  it("só considera quem é da lista E tem perfil de vendedor (o banco filtra por role e ids)", async () => {
+  it("só considera quem é da lista E tem perfil de vendedor ou Head (o banco filtra por role e ids)", async () => {
     const { db, calls } = fakeDb({ profiles: [sellers(["gabriel"])] });
     const next = await createSdrStore(db, { sellerPoolIds: ["raufle", "gabriel"] }).pickNextSeller();
     expect(next).toBe("gabriel"); // raufle não voltou como vendedor válido
-    expect(hasOp(calls[0], "eq", "role", "vendedor")).toBe(true);
+    const roleOp = calls[0].ops.find(([op, a]) => op === "in" && a[0] === "role");
+    expect(roleOp?.[1][1]).toEqual(["vendedor", "head"]);
     expect(hasOp(calls[0], "in", "id")).toBe(true);
+  });
+});
+
+describe("revezamento com o Head cobrindo um vendedor", () => {
+  it("o Head da lista entra no revezamento e alterna com o vendedor", async () => {
+    const pool = ["lucas-head", "gabriel"];
+    const sellers = { data: pool.map((id) => ({ id })) };
+    const afterLucas = fakeDb({
+      profiles: [sellers],
+      crm_conversations: [{ data: [{ deal_id: "d1" }] }],
+      deals: [{ data: [{ seller_id: "lucas-head" }] }],
+    });
+    expect(await createSdrStore(afterLucas.db, { sellerPoolIds: pool }).pickNextSeller()).toBe("gabriel");
+    const afterGabriel = fakeDb({
+      profiles: [sellers],
+      crm_conversations: [{ data: [{ deal_id: "d2" }] }],
+      deals: [{ data: [{ seller_id: "gabriel" }] }],
+    });
+    expect(await createSdrStore(afterGabriel.db, { sellerPoolIds: pool }).pickNextSeller()).toBe("lucas-head");
   });
 });
 
