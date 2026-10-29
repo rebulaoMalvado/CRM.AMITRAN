@@ -30,6 +30,8 @@ export interface SendResult {
 const DEFAULT_API_VERSION = "v25.0";
 const DEFAULT_API_BASE_URL = "https://graph.facebook.com";
 const TIMEOUT_MS = 20_000;
+const MAX_ATTEMPTS = 2;
+const RETRY_DELAY_MS = 700;
 
 /**
  * Envia uma mensagem de TEXTO pela Cloud API da Meta.
@@ -94,36 +96,49 @@ async function postMessage(config: WhatsappConfig, payload: Record<string, unkno
   }
   const url = `${base}/${version}/${config.phoneNumberId}/messages`;
 
-  try {
-    const res = await fetchImpl(url, {
-      method: "POST",
-      headers: {
-        authorization: `Bearer ${config.accessToken}`,
-        "content-type": "application/json",
-      },
-      body: JSON.stringify(payload),
-      signal: AbortSignal.timeout(TIMEOUT_MS),
-    });
+  // Falha de rede (sem resposta da Meta) tem uma 2ª tentativa: costuma ser um tropeço de conexão de 1 segundo.
+  // Timeout NÃO repete: a mensagem pode ter saído, e repetir mandaria em dobro.
+  for (let attempt = 1; attempt <= MAX_ATTEMPTS; attempt++) {
+    try {
+      const res = await fetchImpl(url, {
+        method: "POST",
+        headers: {
+          authorization: `Bearer ${config.accessToken}`,
+          "content-type": "application/json",
+        },
+        body: JSON.stringify(payload),
+        signal: AbortSignal.timeout(TIMEOUT_MS),
+      });
 
-    const json = (await res.json().catch(() => null)) as any;
+      const json = (await res.json().catch(() => null)) as any;
 
-    if (!res.ok) {
-      const e = json?.error;
-      const detail = [e?.code, e?.error_data?.details ?? e?.message].filter(Boolean).join(" · ");
-      const text = `Meta recusou o envio (HTTP ${res.status})${detail ? `: ${detail}` : ""}`;
-      // Defesa extra: se um dia a Meta ecoar o token numa mensagem de erro, ele não sai daqui
-      // (troca ANTES de cortar o tamanho, para não sobrar pedaço do token na borda).
-      return { ok: false, error: text.split(config.accessToken).join("[oculto]").slice(0, 500) };
+      if (!res.ok) {
+        const e = json?.error;
+        const detail = [e?.code, e?.error_data?.details ?? e?.message].filter(Boolean).join(" · ");
+        const text = `Meta recusou o envio (HTTP ${res.status})${detail ? `: ${detail}` : ""}`;
+        // Defesa extra: se um dia a Meta ecoar o token numa mensagem de erro, ele não sai daqui
+        // (troca ANTES de cortar o tamanho, para não sobrar pedaço do token na borda).
+        return { ok: false, error: text.split(config.accessToken).join("[oculto]").slice(0, 500) };
+      }
+
+      const wamid = json?.messages?.[0]?.id;
+      if (typeof wamid !== "string" || !wamid) {
+        return { ok: false, error: "Resposta da Meta sem ID de mensagem" };
+      }
+      return { ok: true, wamid };
+    } catch (err) {
+      const timedOut = err instanceof Error && (err.name === "TimeoutError" || err.name === "AbortError");
+      if (timedOut) return { ok: false, error: "A Meta demorou demais para responder", unconfirmed: true };
+      // Fica no log da Vercel (sem token) para descobrir a causa quando a falha se repetir.
+      const code = (err as { cause?: { code?: string } })?.cause?.code ?? "";
+      const msg = (err instanceof Error ? err.message : String(err)).split(config.accessToken).join("[oculto]").slice(0, 150);
+      console.error(`[whatsapp] falha de rede (tentativa ${attempt}/${MAX_ATTEMPTS}): ${err instanceof Error ? err.name : "erro"} ${code} ${msg}`);
+      if (attempt < MAX_ATTEMPTS) {
+        await new Promise((resolve) => setTimeout(resolve, RETRY_DELAY_MS));
+        continue;
+      }
+      return { ok: false, error: "Falha de rede ao falar com a Meta" };
     }
-
-    const wamid = json?.messages?.[0]?.id;
-    if (typeof wamid !== "string" || !wamid) {
-      return { ok: false, error: "Resposta da Meta sem ID de mensagem" };
-    }
-    return { ok: true, wamid };
-  } catch (err) {
-    const timedOut = err instanceof Error && (err.name === "TimeoutError" || err.name === "AbortError");
-    if (timedOut) return { ok: false, error: "A Meta demorou demais para responder", unconfirmed: true };
-    return { ok: false, error: "Falha de rede ao falar com a Meta" };
   }
+  return { ok: false, error: "Falha de rede ao falar com a Meta" };
 }

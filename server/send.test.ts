@@ -229,6 +229,37 @@ describe("sendWhatsappText", () => {
     });
     const r = await sendWhatsappText(config, { to: "1", body: "x" }, boom as unknown as typeof fetch);
     expect(r).toEqual({ ok: false, error: "Falha de rede ao falar com a Meta" });
+    expect(boom).toHaveBeenCalledTimes(2); // tentou de novo uma vez
+  });
+
+  it("falha de rede na 1ª tentativa e sucesso na 2ª: envia (uma mensagem só)", async () => {
+    let n = 0;
+    const flaky = vi.fn(async () => {
+      n += 1;
+      if (n === 1) throw new TypeError("fetch failed");
+      return new Response(JSON.stringify({ messages: [{ id: "wamid.RETRY" }] }), { status: 200 });
+    });
+    const r = await sendWhatsappText(config, { to: "1", body: "x" }, flaky as unknown as typeof fetch);
+    expect(r).toEqual({ ok: true, wamid: "wamid.RETRY" });
+    expect(flaky).toHaveBeenCalledTimes(2);
+  });
+
+  it("timeout NÃO é repetido (a mensagem pode ter saído)", async () => {
+    const slow = vi.fn(async () => {
+      const e = new Error("timeout");
+      e.name = "TimeoutError";
+      throw e;
+    });
+    const r = await sendWhatsappText(config, { to: "1", body: "x" }, slow as unknown as typeof fetch);
+    expect(r).toMatchObject({ ok: false, unconfirmed: true });
+    expect(slow).toHaveBeenCalledTimes(1);
+  });
+
+  it("recusa da Meta (HTTP 4xx) não é repetida", async () => {
+    const refuse = vi.fn(async () => new Response(JSON.stringify({ error: { code: 131042, message: "pagamento" } }), { status: 400 }));
+    const r = await sendWhatsappText(config, { to: "1", body: "x" }, refuse as unknown as typeof fetch);
+    expect(r.ok).toBe(false);
+    expect(refuse).toHaveBeenCalledTimes(1);
   });
 });
 
