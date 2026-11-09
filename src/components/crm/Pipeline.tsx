@@ -39,7 +39,7 @@ const Pipeline = () => {
   return (
     <>
       <DragDropContext onDragEnd={handleDragEnd}>
-        <div className="flex gap-4 overflow-x-auto pb-4 scrollbar-thin scroll-smooth snap-x snap-mandatory sm:snap-none">
+        <div className="flex gap-4 xl:gap-3 overflow-x-auto pb-4 scrollbar-thin snap-x snap-mandatory sm:snap-none">
           {STAGES.map((stage) => {
             const stageDeals = getDealsByStage(stage.id);
             const limit = limits[stage.id] ?? PAGE_SIZE;
@@ -54,7 +54,7 @@ const Pipeline = () => {
                   <div
                     ref={provided.innerRef}
                     {...provided.droppableProps}
-                    className={`pipeline-column min-w-[260px] w-[85vw] sm:min-w-[280px] sm:w-[280px] shrink-0 snap-start transition-colors ${snapshot.isDraggingOver ? 'bg-accent/50 border-primary/30' : ''}`}
+                    className={`pipeline-column min-w-[260px] w-[85vw] sm:min-w-[280px] sm:w-[280px] xl:min-w-[235px] xl:w-auto xl:flex-1 shrink-0 xl:shrink snap-start transition-colors ${snapshot.isDraggingOver ? 'bg-accent/50 border-primary/30' : ''}`}
                   >
                     {/* Header */}
                     <div className="p-4 border-b border-border/50">
