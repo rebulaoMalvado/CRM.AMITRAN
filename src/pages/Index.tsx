@@ -9,7 +9,7 @@ import FilterBar from '@/components/crm/FilterBar';
 import CSVActions from '@/components/crm/CSVActions';
 import { TrashButton } from '@/components/crm/TrashModal';
 import { ChangePasswordButton } from '@/components/crm/ChangePasswordModal';
-import { BarChart3, ChevronDown, ChevronUp, LogOut, Users, FileBarChart, Briefcase, Wallet, DollarSign, MessageCircle } from 'lucide-react';
+import { BarChart3, ChevronDown, ChevronUp, LogOut, Users, FileBarChart, Briefcase, Wallet, DollarSign, MessageCircle, Map as MapIcon } from 'lucide-react';
 
 const CRMDashboard = () => {
   const [showCharts, setShowCharts] = useState(false);
@@ -40,6 +40,14 @@ const CRMDashboard = () => {
             >
               <MessageCircle className="w-3.5 h-3.5" />
               <span className="hidden sm:inline">Conversas</span>
+            </Link>
+            <Link
+              to="/mapa"
+              className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium rounded-md bg-muted text-muted-foreground hover:text-card-foreground hover:bg-accent transition-colors"
+              title="Mapa de rotas e casamentos de mudanças"
+            >
+              <MapIcon className="w-3.5 h-3.5" />
+              <span className="hidden sm:inline">Mapa</span>
             </Link>
             <Link
               to="/carteira"
