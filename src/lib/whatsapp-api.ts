@@ -142,3 +142,17 @@ export async function sendPropostaWhatsapp(dealId: string, form: PropostaForm, c
     throw new Error(json.message || `Erro ${res.status}`);
   }
 }
+
+/** Mapa de rotas: negócios de TODOS os vendedores (o servidor confere o login e entrega só o que o mapa usa). */
+export interface MapDealData {
+  id: string;
+  nome: string;
+  origem: string;
+  destino: string;
+  dataMudanca: string;
+  stage: import('@/types/crm').Stage;
+  valor: number;
+  sellerName: string | null;
+}
+
+export const fetchMapDeals = () => post<{ ok: true; deals: MapDealData[]; lost: number }>('/api/whatsapp/assign?op=mapa', {});

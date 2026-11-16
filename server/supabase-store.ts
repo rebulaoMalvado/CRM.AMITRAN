@@ -7,6 +7,7 @@ import type { MediaStore } from "./media-handler.js";
 import type { PropostaStore } from "./proposta-handler.js";
 import type { SdrStore } from "./sdr/engine.js";
 import type { SdrConfigStore, SdrConversationStore } from "./sdr/admin-handlers.js";
+import type { MapStore } from "./map-handler.js";
 import type { AuthUser, SendStore } from "./send-handler.js";
 
 /**
@@ -612,6 +613,44 @@ export function createNotifyStore(db: SupabaseClient) {
         telefoneNorm: (data.telefone_norm as string | null) ?? null,
         lastInboundAt: (data.last_inbound_at as string | null) ?? null,
       };
+    },
+  };
+}
+
+/**
+ * Leitura do Mapa de rotas: negócios de TODOS os vendedores (lê com a chave de serviço, depois de o servidor
+ * conferir o login). Só sai o que o mapa precisa: sem telefone, parceiro, motivo de perda nem custos.
+ * Negócio na Lixeira não entra; os perdidos só são contados.
+ */
+export function createMapStore(db: SupabaseClient): MapStore {
+  return {
+    async listForMap() {
+      const [dealsRes, lostRes, profilesRes] = await Promise.all([
+        db
+          .from(TABLES.deals)
+          .select("id, seller_id, nome, origem, destino, data_mudanca, stage, valor")
+          .neq("stage", "perdido")
+          .is("deleted_at", null)
+          .limit(5000),
+        db.from(TABLES.deals).select("id", { count: "exact", head: true }).eq("stage", "perdido").is("deleted_at", null),
+        db.from(TABLES.profiles).select("id, name"),
+      ]);
+      if (dealsRes.error) throw new Error(`listar negócios do mapa: ${dealsRes.error.message}`);
+      if (lostRes.error) throw new Error(`contar perdidos: ${lostRes.error.message}`);
+      if (profilesRes.error) throw new Error(`listar vendedores: ${profilesRes.error.message}`);
+
+      const names = new Map((profilesRes.data ?? []).map((p) => [p.id as string, (p.name as string) || ""]));
+      const deals = (dealsRes.data ?? []).map((row) => ({
+        id: row.id as string,
+        nome: (row.nome as string) || "",
+        origem: (row.origem as string) || "",
+        destino: (row.destino as string) || "",
+        dataMudanca: (row.data_mudanca as string) || "",
+        stage: row.stage as string,
+        valor: Number(row.valor) || 0,
+        sellerName: names.get(row.seller_id as string) || null,
+      }));
+      return { deals, lost: lostRes.count ?? 0 };
     },
   };
 }

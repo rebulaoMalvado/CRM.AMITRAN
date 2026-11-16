@@ -1,3 +1,4 @@
+import { lazy, Suspense } from "react";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { BrowserRouter, Route, Routes } from "react-router-dom";
 import { Toaster as Sonner } from "@/components/ui/sonner";
@@ -15,6 +16,9 @@ import Financeiro from "./pages/Financeiro.tsx";
 import Conversas from "./pages/Conversas.tsx";
 import RedefinirSenha from "./pages/RedefinirSenha.tsx";
 import NotFound from "./pages/NotFound.tsx";
+
+// O mapa carrega só quando alguém abre a página (o desenho dos estados pesa ~120 KB).
+const Mapa = lazy(() => import("./pages/Mapa.tsx"));
 
 const queryClient = new QueryClient();
 
@@ -81,6 +85,16 @@ const App = () => (
               element={
                 <ProtectedRoute>
                   <Conversas />
+                </ProtectedRoute>
+              }
+            />
+            <Route
+              path="/mapa"
+              element={
+                <ProtectedRoute>
+                  <Suspense fallback={null}>
+                    <Mapa />
+                  </Suspense>
                 </ProtectedRoute>
               }
             />
