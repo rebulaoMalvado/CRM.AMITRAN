@@ -483,27 +483,16 @@ export function createSdrStore(db: SupabaseClient, options: SdrStoreOptions = {}
 
       // Último vendedor da lista que recebeu um lead do WhatsApp (negócio ligado a uma conversa): o próximo é a vez.
       // Negócios na Lixeira CONTAM de propósito: o lead foi distribuído, então a vez segue para o próximo.
-      const { data: convs, error: convError } = await db
-        .from("crm_conversations")
-        .select("deal_id")
-        .not("deal_id", "is", null)
-        .in("assigned_seller_id", ids)
-        .limit(200);
-      if (convError) throw new Error(`buscar conversas com negócio: ${convError.message}`);
-      const dealIds = (convs ?? []).map((row) => row.deal_id as string);
-
-      let lastSeller: string | null = null;
-      if (dealIds.length > 0) {
-        const { data: deals, error: dealError } = await db
-          .from(TABLES.deals)
-          .select("seller_id")
-          .in("id", dealIds)
-          .in("seller_id", ids)
-          .order("created_at", { ascending: false })
-          .limit(1);
-        if (dealError) throw new Error(`buscar último negócio: ${dealError.message}`);
-        lastSeller = (deals?.[0]?.seller_id as string | undefined) ?? null;
-      }
+      // Uma consulta só, direto no negócio mais recente: antes lia 200 conversas SEM ordem, e com mais de 200
+      // o "último" vinha de um recorte antigo e qualquer — um vendedor ficava sem receber (bug de 14–15/11/2026).
+      const { data: deals, error: dealError } = await db
+        .from(TABLES.deals)
+        .select("seller_id, crm_conversations!inner(id)")
+        .in("seller_id", ids)
+        .order("created_at", { ascending: false })
+        .limit(1);
+      if (dealError) throw new Error(`buscar último negócio: ${dealError.message}`);
+      const lastSeller = (deals?.[0]?.seller_id as string | undefined) ?? null;
       const index = lastSeller ? ids.indexOf(lastSeller) : -1;
       return ids[(index + 1) % ids.length];
     },

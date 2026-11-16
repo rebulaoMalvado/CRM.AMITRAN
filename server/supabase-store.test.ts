@@ -107,22 +107,32 @@ describe("revezamento só entre os vendedores da lista", () => {
 
   it("primeiro lead vai para o primeiro da lista; depois alterna", async () => {
     const pool = ["raufle", "gabriel"];
-    const first = fakeDb({ profiles: [sellers(pool)], crm_conversations: [{ data: [] }] });
+    const first = fakeDb({ profiles: [sellers(pool)], deals: [{ data: [] }] });
     expect(await createSdrStore(first.db, { sellerPoolIds: pool }).pickNextSeller()).toBe("raufle");
 
     const afterRaufle = fakeDb({
       profiles: [sellers(pool)],
-      crm_conversations: [{ data: [{ deal_id: "d1" }] }],
       deals: [{ data: [{ seller_id: "raufle" }] }],
     });
     expect(await createSdrStore(afterRaufle.db, { sellerPoolIds: pool }).pickNextSeller()).toBe("gabriel");
 
     const afterGabriel = fakeDb({
       profiles: [sellers(pool)],
-      crm_conversations: [{ data: [{ deal_id: "d2" }] }],
       deals: [{ data: [{ seller_id: "gabriel" }] }],
     });
     expect(await createSdrStore(afterGabriel.db, { sellerPoolIds: pool }).pickNextSeller()).toBe("raufle");
+  });
+
+  it("olha o negócio MAIS RECENTE direto (sem recorte de 200 conversas sem ordem) — bug do fim de semana de 14–15/11", async () => {
+    const pool = ["raufle", "gabriel"];
+    const { db, calls } = fakeDb({ profiles: [sellers(pool)], deals: [{ data: [{ seller_id: "raufle" }] }] });
+    expect(await createSdrStore(db, { sellerPoolIds: pool }).pickNextSeller()).toBe("gabriel");
+    const dealsCall = calls.find((c) => c.table === "deals") as Call;
+    expect(calls.some((c) => c.table === "crm_conversations")).toBe(false);
+    expect(hasOp(dealsCall, "order", "created_at")).toBe(true);
+    expect(dealsCall.ops.find(([op]) => op === "order")?.[1][1]).toEqual({ ascending: false });
+    expect(hasOp(dealsCall, "limit", 1)).toBe(true);
+    expect(dealsCall.ops.find(([op]) => op === "select")?.[1][0]).toContain("crm_conversations!inner");
   });
 
   it("só considera quem é da lista E tem perfil de vendedor ou Head (o banco filtra por role e ids)", async () => {
@@ -141,13 +151,11 @@ describe("revezamento com o Head cobrindo um vendedor", () => {
     const sellers = { data: pool.map((id) => ({ id })) };
     const afterLucas = fakeDb({
       profiles: [sellers],
-      crm_conversations: [{ data: [{ deal_id: "d1" }] }],
       deals: [{ data: [{ seller_id: "lucas-head" }] }],
     });
     expect(await createSdrStore(afterLucas.db, { sellerPoolIds: pool }).pickNextSeller()).toBe("gabriel");
     const afterGabriel = fakeDb({
       profiles: [sellers],
-      crm_conversations: [{ data: [{ deal_id: "d2" }] }],
       deals: [{ data: [{ seller_id: "gabriel" }] }],
     });
     expect(await createSdrStore(afterGabriel.db, { sellerPoolIds: pool }).pickNextSeller()).toBe("lucas-head");
